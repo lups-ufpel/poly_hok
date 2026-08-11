@@ -3,6 +3,11 @@ defmodule CudaBackend do
   Implements the `PolyHok.BackendBehaviour` for generating CUDA code from the provided  ASTs.
   """
   @behaviour PolyHok.BackendBehaviour
+  @on_load :load_nifs
+
+  def load_nifs do
+    :erlang.load_nif("./priv/gpu_nifs", 0)
+  end
 
   @doc """
   Generates a new Elixir module AST with a custom `__using__/1` macro and transformed function definitions.
@@ -457,5 +462,36 @@ defmodule CudaBackend do
       {:kill} ->
         :ok
     end
+  end
+
+  # ------------------------------ NIF Stubs ------------------------------
+  @impl PolyHok.BackendBehaviour
+  def new_empty_gpu_array_nif(_l, _c, _type) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def new_gpu_array_from_nx_nif(_nx, _l, _c, _type) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def get_gpu_array_nif(_gnx, _l, _c, _type) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def synchronize_nif() do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def jit_compile_nif(_kernel_name, _kernel_code) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def jit_launch_nif(_kernel_resource, _blocks, _threads, _len_args, _types_args, _args) do
+    :erlang.nif_error(:nif_not_loaded)
   end
 end

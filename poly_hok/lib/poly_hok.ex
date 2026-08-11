@@ -112,7 +112,7 @@ defmodule PolyHok do
 
     - A string of 10 random characters chosen from the set "0123456789abcdefghijklmno".
   """
-  defp gen_lambda_name() do
+  def gen_lambda_name() do
     for _ <- 1..10, into: "", do: <<Enum.random(~c"0123456789abcdefghijklmno")>>
   end
 

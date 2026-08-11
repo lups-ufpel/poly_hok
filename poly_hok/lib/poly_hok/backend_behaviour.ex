@@ -22,6 +22,7 @@ defmodule PolyHok.BackendBehaviour do
 
   # Correctly declares the parameters variables based on types in the target language
   @type p :: atom()
+  @type fun_type :: tuple()
 
   @callback gen_para(p, :tint) :: String.t()
   @callback gen_para(p, :tfloat) :: String.t()
@@ -29,4 +30,5 @@ defmodule PolyHok.BackendBehaviour do
   @callback gen_para(p, :int) :: String.t()
   @callback gen_para(p, :float) :: String.t()
   @callback gen_para(p, :double) :: String.t()
+  @callback gen_para(p, fun_type) :: String.t() | nil
 end

@@ -1,4 +1,4 @@
-defmodule CudaBackend do
+defmodule OpenclBackend do
   @moduledoc """
   Implements the `PolyHok.BackendBehaviour` for generating CUDA code from the provided  ASTs.
   """
@@ -46,8 +46,8 @@ defmodule CudaBackend do
 
     {:__aliases__, _, [module_name]} = header
 
-    # IO.inspect body
-
+    # The 'JIT.process_module' line is the same called in PolyHok.defmodule macro.
+    # It is here to ensure that the body will always be processed during runtime.
     using =
       quote do
         defmacro __using__(_opts) do
@@ -55,18 +55,6 @@ defmodule CudaBackend do
         end
       end
 
-    # IO.inspect using
-    # IO.inspect new_body
-    # using = {:defmacro, [line: 16, column: 3],
-    #  [
-    #  {:__using__, [line: 16, column: 12],
-    #  [{:_opts, [line: 16, column: 22], nil}]},
-    #  [
-    #   do: {{:., [line: 17, column: 10],
-    #     [{:__aliases__, [line: 17, column: 8], [:IO]}, :puts]},
-    #    [line: 17, column: 11], ["You are USIng!"]}
-    #  ]
-    # ]}
     new_module =
       quote do
         defmodule unquote(header) do
@@ -76,6 +64,8 @@ defmodule CudaBackend do
 
     new_module
   end
+
+  # ------ Helper functions to generate new definitions for the module ------
 
   defp gen_new_definitions([]), do: []
 
@@ -161,7 +151,7 @@ defmodule CudaBackend do
 
   @impl PolyHok.BackendBehaviour
   def declare_kernel(name, param_list_str, body) do
-    "__global__\nvoid #{name}(#{param_list_str})\n{\n#{body}\n}"
+    "__kernel void #{name}(#{param_list_str})\n{\n#{body}\n}"
   end
 
   # def gen_function(name, para, body, type) do
@@ -170,7 +160,8 @@ defmodule CudaBackend do
 
   @impl PolyHok.BackendBehaviour
   def declare_function(name, param_list_str, body, return_type) do
-    "__device__\n#{return_type} #{name}(#{param_list_str})\n{\n#{body}\n}"
+    # OpenCL doesn't need a special qualifier for device functions
+    "#{return_type} #{name}(#{param_list_str})\n{\n#{body}\n}"
   end
 
   # def gen_cuda_jit(body, types, param_vars, module, subs) do
@@ -233,7 +224,7 @@ defmodule CudaBackend do
     end
   end
 
-  # Generates CUDA code for a given AST node command
+  # Generates OpenCL code for a given AST node command
   defp gen_command(code) do
     case code do
       {:for, _, [param, [body]]} ->
@@ -303,10 +294,11 @@ defmodule CudaBackend do
               raise "Var #{name} already declared."
           end
 
-        "__shared__ #{atype} #{name}[#{index}];"
+        "__local #{atype} #{name}[#{index}];"
 
       {:__syncthreads, _, _} ->
-        "__syncthreads();"
+        # OpenCL equivalent of __syncthreads() in CUDA
+        "barrier(CLK_LOCAL_MEM_FENCE);"
 
       {:var, _, [{var, _, [{:=, _, [{type, _, nil}, exp]}]}]} ->
         # IO.puts "aqui"
@@ -366,13 +358,44 @@ defmodule CudaBackend do
         index = gen_exp(arg2)
         "#{name}[#{index}]"
 
-      # Esse pattern vai ser acionado quando estivermos acessando estruturas especiais de indexação da GPU (ex: threadIdx.x, blockIdx.y, etc.). É só retornar os átomos como estão.
+      # Esse pattern vai ser acionado quando estivermos acessando estruturas especiais de indexação da GPU (ex: threadIdx.x, blockIdx.y, etc.).
+      # Estamos convertendo a sintaxe estilo CUDA para o OpenCL
+      {{:., _, [{struct, _, _}, field]}, _, []}
+      when struct in [:threadIdx, :blockIdx, :blockDim, :gridDim] ->
+        output_function =
+          case struct do
+            :threadIdx -> "get_local_id"
+            :blockIdx -> "get_group_id"
+            :blockDim -> "get_local_size"
+            :gridDim -> "get_num_groups"
+          end
+
+        output_dim_arg =
+          case field do
+            :x -> "0"
+            :y -> "1"
+            :z -> "2"
+            _ -> raise "Unknown field #{field} in special struct #{struct}"
+          end
+
+        "#{output_function}(#{output_dim_arg})"
+
+      # Acesso a um campo de uma estrutura normal
+      # Deixei um IO.puts para debug caso algum comportamento estranho aconteça e precisemos investigar
       {{:., _, [{struct, _, _}, field]}, _, []} ->
+        # IO.puts("[BACKEND] Acessing #{struct} with field #{field}")
         "#{to_string(struct)}.#{to_string(field)}"
 
       # Mesma ideia aqui. Não sei dizer quando que esse __aliases__ vai ser acionado, mas é bom ter por aqui também.
       {{:., _, [{:__aliases__, _, [struct]}, field]}, _, []} ->
+        # IO.puts("[BACKEND] Acessing #{struct} with alias and field #{field}")
         "#{to_string(struct)}.#{to_string(field)}"
+
+      # Square root of float (in OpenCL we don't need special function names for different types)
+      # I left this here for old code compatibility, because otherwise it would try to call sqrtf, and this
+      # doesn't exist in OpenCL
+      {:sqrtf, _, [arg]} ->
+        "sqrt(#{gen_exp(arg)})"
 
       {op, _, args} when op in [:+, :-, :/, :*, :<=, :<, :>, :>=, :&&, :||, :!, :!=, :==] ->
         case args do
@@ -409,13 +432,19 @@ defmodule CudaBackend do
           |> Enum.map(&gen_exp/1)
           |> Enum.join(", ")
 
-        nfun = check_fun(fun)
+        nfun =
+          case check_fun(fun) do
+            nil -> fun
+            f -> f
+          end
 
-        if nfun == nil do
-          "#{fun}(#{nargs})"
-        else
-          "#{nfun}(#{nargs})"
-        end
+        nfun =
+          case PolyHokFunctions.lookup(fun) do
+            %{opencl_name: opencl_name} -> opencl_name
+            _ -> nfun
+          end
+
+        "#{nfun}(#{nargs})"
 
       number when is_integer(number) or is_float(number) ->
         to_string(number)
@@ -443,7 +472,8 @@ defmodule CudaBackend do
       "\n}\n"
   end
 
-  def check_fun(fun) do
+  # Tries to retrieve the actual name of a function from the types server.
+  defp check_fun(fun) do
     send(:types_server, {:check_fun, fun, self()})
 
     receive do

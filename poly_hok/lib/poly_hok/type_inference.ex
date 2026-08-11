@@ -1,7 +1,5 @@
 defmodule PolyHok.TypeInference do
   def type_check(map, body) do
-    # body = PolyHok.CudaBackend.add_return(body)
-
     types = infer_types(map, body)
     notinfer = not_infered(Map.to_list(types))
 
@@ -56,78 +54,79 @@ defmodule PolyHok.TypeInference do
     end
   end
 
-  # defmacro tinf(header, do: body) do
-  # {_fname, _, para} = header
-  # map = para
-  # |> Enum.map(fn({p, _, _}) -> p end)
-  # |> Map.new(fn x -> {x,:none} end)
-  ## IO.inspect body
-  # nmap = infer_types(map,body)
-  # #IO.inspect nmap
-  # :ok
-  # end
+  @doc """
+    Adds a return statement to the body of the provided function ONLY IF it returns a value.
+  """
+  def add_return(body) do
+    case body do
+      {:do, {:__block__, pos, code}} ->
+        {:do, {:__block__, pos, check_return(code)}}
 
-  ########################### adds return statement to functions that return an expression
+      {:__block__, pos, code} ->
+        {:__block__, pos, check_return(code)}
 
-  def add_return(map, body) do
-    if map[:return] == nil do
-      body
-    else
-      case body do
-        {:__block__, pos, code} ->
-          {:__block__, pos, check_return(code)}
+      {:do, exp} ->
+        case exp do
+          {:return, _, _} ->
+            {:do, exp}
 
-        {:do, {:__block__, pos, code}} ->
-          {:do, {:__block__, pos, check_return(code)}}
+          _ ->
+            if is_exp?(exp) do
+              {:do, {:return, [], [exp]}}
+            else
+              {:do, check_return(exp)}
+            end
+        end
 
-        {:do, exp} ->
-          case exp do
-            {:return, _, _} ->
-              {:do, exp}
-
-            _ ->
-              if is_exp?(exp) do
-                {:do, {:return, [], [exp]}}
-              else
-                {:do, check_return(exp)}
-              end
-          end
-
-        {_, _, _} ->
-          if is_exp?(body) do
-            {:return, [], [body]}
-          else
-            body
-          end
-      end
-    end
-  end
-
-  defp check_return([h | t]) do
-    [h | check_return(t)]
-  end
-
-  defp check_return([com]) do
-    case com do
-      {:return, _, _} ->
-        [com]
-
-      {:if, info, [exp, [do: block]]} ->
-        [{:if, info, [exp, [do: check_return(block)]]}]
-
-      {:if, info, [exp, [do: block, else: belse]]} ->
-        [{:if, info, [exp, [do: check_return(block), else: check_return(belse)]]}]
-
-      _ ->
-        if is_exp?(com) do
-          [{:return, [], [com]}]
+      {_, _, _} ->
+        if is_exp?(body) do
+          {:return, [], [body]}
         else
-          [com]
+          body
         end
     end
   end
 
+  # When we have a list of commands we need to check only the last one,
+  # because only the last command can be a return statement.
+  defp check_return(coms) when is_list(coms) do
+    # IO.puts("Multiple commands")
+
+    list_len = length(coms)
+    coms_with_index = Enum.with_index(coms, 1)
+
+    Enum.map(coms_with_index, fn {com, idx} ->
+      if idx == list_len do
+        check_return_last(com)
+      else
+        check_return(com)
+      end
+    end)
+  end
+
   defp check_return(com) do
+    # IO.puts("Single command - but not last")
+    # IO.inspect(com, label: "Command to check")
+
+    case com do
+      {:return, _, _} ->
+        com
+
+      {:if, info, [exp, [do: block]]} ->
+        {:if, info, [exp, [do: check_return(block)]]}
+
+      {:if, info, [exp, [do: block, else: belse]]} ->
+        {:if, info, [exp, [do: check_return(block), else: check_return(belse)]]}
+
+      _ ->
+        com
+    end
+  end
+
+  defp check_return_last(com) do
+    # IO.puts("Checking last command")
+    # IO.inspect(com, label: "Command to check")
+
     case com do
       {:return, _, _} ->
         com
@@ -153,6 +152,7 @@ defmodule PolyHok.TypeInference do
       {{:., _, [{_struct, _, nil}, _field]}, _, []} -> true
       {{:., _, [{:__aliases__, _, [_struct]}, _field]}, _, []} -> true
       {op, _info, _args} when op in [:+, :-, :/, :*] -> true
+      {op, _info, [_arg1]} when op in [:>>>, :<<<, :~>>, :&&&, :|||, :+++] -> true
       {op, _info, [_arg1, _arg2]} when op in [:<=, :<, :>, :>=, :!=, :==] -> true
       {:!, _info, [_arg]} -> true
       {op, _inf, _args} when op in [:&&, :||] -> true

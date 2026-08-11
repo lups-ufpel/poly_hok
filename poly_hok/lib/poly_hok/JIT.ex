@@ -401,7 +401,7 @@ defmodule JIT do
 
         #  IO.inspect "Process definitions: #{fname}"
 
-        body = PolyHok.TypeInference.add_return(Map.put(%{}, :return, :none), body)
+        body = PolyHok.TypeInference.add_return(body)
         # body = PolyHok.CudaBackend.add_return( body)
         #  IO.inspect body
         funs = find_functions({:defd, ii, [header, [body]]})

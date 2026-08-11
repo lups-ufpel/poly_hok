@@ -288,7 +288,7 @@ defmodule PolyHok do
       )
 
   def synchronize() do
-    synchronize_nif()
+    @backend.synchronize_nif()
   end
 
   @doc """

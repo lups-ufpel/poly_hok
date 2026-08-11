@@ -1,5 +1,10 @@
 defmodule PolyHok do
   @backend Application.compile_env!(:poly_hok, :backend)
+  @on_load :on_load_callback
+
+  defp on_load_callback() do
+    IO.puts("[PolyHok] Loading backend: #{@backend}")
+  end
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
     body = PolyHok.TypeInference.add_return(body)

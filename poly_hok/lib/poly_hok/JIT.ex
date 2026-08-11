@@ -152,7 +152,7 @@ defmodule JIT do
     {fname, _, para} = header
 
     para = preprocess_formal_parameters(para)
-    param_str = get_param_list(para, inf_types)
+    param_str = get_param_str(para, inf_types)
     param_vars = get_param_vars(para)
 
     code_body = @backend.gen_code(body, inf_types, param_vars, "module", subs)

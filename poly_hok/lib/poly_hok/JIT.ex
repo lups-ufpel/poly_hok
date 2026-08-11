@@ -872,11 +872,10 @@ defmodule JIT do
   def gen_dev_fun_initial_delta({:defd, _, [header, [_body]]}) do
     {_, _, formal_para} = header
 
-    delta =
-      preprocess_formal_parameters(formal_para)
-      |> get_param_vars()
-      |> Enum.map(fn p -> {p, :none} end)
-      |> Map.new()
+    preprocess_formal_parameters(formal_para)
+    |> get_param_vars()
+    |> Enum.map(fn p -> {p, :none} end)
+    |> Map.new()
   end
 
   # Returns a list of atoms representing the names of the formal parameters of a device function/kernel.
@@ -1260,6 +1259,18 @@ defmodule JIT do
       |> MapSet.new()
 
     # IO.inspect "body #{inspect body}"
+    {_args, funs} = find_function_calls_body({param_vars, MapSet.new()}, body)
+
+    MapSet.to_list(funs)
+  end
+
+  def find_functions({:fn, _aa, [{:->, _bb, [para, body]}]}) do
+    param_vars =
+      para
+      |> preprocess_formal_parameters()
+      |> get_param_vars()
+      |> MapSet.new()
+
     {_args, funs} = find_function_calls_body({param_vars, MapSet.new()}, body)
 
     MapSet.to_list(funs)

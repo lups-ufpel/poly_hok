@@ -1,15 +1,10 @@
 defmodule PolyHok do
-  @on_load :load_nifs
-  def load_nifs do
-    :erlang.load_nif("./priv/gpu_nifs", 0)
-  end
+  @backend Application.compile_env!(:poly_hok, :backend)
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
-    # IO.inspect "body: #{inspect body}"
-    # raise "hell"
-    body = PolyHok.CudaBackend.add_return(body)
+    body = PolyHok.TypeInference.add_return(body)
     funs = JIT.find_functions({:fn, aa, [{:->, bb, [para, body]}]})
-    name = "anon_" <> PolyHok.CudaBackend.gen_lambda_name()
+    name = "anon_" <> gen_lambda_name()
 
     free = JIT.find_free_vars({:fn, aa, [{:->, bb, [para, body]}]})
 
@@ -20,7 +15,6 @@ defmodule PolyHok do
     free = Enum.map(free, fn p -> String.to_atom(name <> Atom.to_string(p)) end)
     function = {:fn, aa, [{:->, bb, [para ++ extra, body]}]}
 
-    # IO.inspect list
     resp =
       quote(
         do:
@@ -28,26 +22,17 @@ defmodule PolyHok do
            unquote(free), unquote(extra)}
       )
 
-    #  resp =  quote(do: {:anon , unquote(name),unquote({:fn, aa, [{:->, bb , [para,body]}] })})
     resp
   end
 
   defmacro phok({:fn, aa, [{:->, bb, [para, body]}]}) do
     # IO.inspect "body: #{inspect body}"
-    body = PolyHok.CudaBackend.add_return(body)
+    body = PolyHok.TypeInference.add_return(body)
     funs = JIT.find_functions({:fn, aa, [{:->, bb, [para, body]}]})
-    name = "anon_" <> PolyHok.CudaBackend.gen_lambda_name()
+    name = "anon_" <> gen_lambda_name()
     function = {:fn, aa, [{:->, bb, [para, body]}]}
     resp = quote(do: {:anon, unquote(name), {unquote(Macro.escape(function)), unquote(funs)}})
-    #  resp =  quote(do: {:anon , unquote(name),unquote({:fn, aa, [{:->, bb , [para,body]}] })})
     resp
-    # IO.inspect function
-    # raise "hell"
-    # {fname,type} = PolyHok.CudaBackend.gen_lambda("Elixir.App",function)
-    # result = quote do: PolyHok.load_lambda_compilation(unquote("Elixir.App"), unquote(fname), unquote(type))
-    # result
-    # IO.inspect result
-    # raise "hell"
   end
 
   defmacro gpu_for({:<-, _, [var, tensor]}, do: b) do
@@ -66,17 +51,9 @@ defmodule PolyHok do
                 unquote(e1),
                 PolyHok.phok(fn unquote(arr1), unquote(arr2), unquote(var1) -> unquote(body) end)
               )
-
-    # IO.inspect r
-    # raise "hell"
     r
   end
 
-  # defmacro gpu_for({:<-, _ ,[var,tensor]},do: b)  do
-  #    quote do: PolyHok.new_gnx(unquote(tensor))
-  #              |> PMap.map(PolyHok.phok (fn (unquote(var)) -> (unquote b) end))
-  #              |> PolyHok.get_gnx
-  # end
   defmacro gpufor({:<-, _, [var, tensor]}, do: b) do
     quote do: Comp.comp(unquote(tensor), PolyHok.phok(fn unquote(var) -> unquote(b) end))
   end
@@ -90,9 +67,6 @@ defmodule PolyHok do
                 unquote(e1),
                 PolyHok.phok(fn unquote(arr1), unquote(arr2), unquote(var1) -> unquote(body) end)
               )
-
-    # IO.inspect r
-    # raise "hell"
     r
   end
 
@@ -104,7 +78,6 @@ defmodule PolyHok do
              par3,
              do: body
            ) do
-    # IO.inspect "Aqui"
     r =
       quote do:
               MM.comp2xy2D1p(
@@ -121,9 +94,6 @@ defmodule PolyHok do
                   unquote(body)
                 end)
               )
-
-    # IO.inspect r
-    # raise "hell"
     r
   end
 
@@ -131,122 +101,98 @@ defmodule PolyHok do
     {:__aliases__, _, [module_name]} = header
     JIT.process_module(module_name, body)
 
-    ast_new_module = PolyHok.CudaBackend.gen_new_module(header, body)
+    ast_new_module = @backend.gen_new_module(header, body)
     ast_new_module
   end
 
-  def get_type_gnx({:nx, type, _shape, _name, _ref}) do
-    type
+  @doc """
+  Creates a unique name for anonymous functions (lambdas) by generating a random string of 10 characters.
+
+  ## Returns
+
+    - A string of 10 random characters chosen from the set "0123456789abcdefghijklmno".
+  """
+  defp gen_lambda_name() do
+    for _ <- 1..10, into: "", do: <<Enum.random(~c"0123456789abcdefghijklmno")>>
   end
 
-  def get_type({:nx, type, _shape, _name, _ref}) do
-    type
+  # ----------------- GPU NX miscellaneous functions -----------------
+
+  def get_type_gnx({:nx, type, _shape, _name, _ref}), do: type
+
+  def get_type(%Nx.Tensor{type: type}), do: type
+
+  def get_shape_gnx({:nx, _type, shape, _name, _ref}), do: shape
+
+  def get_shape(%Nx.Tensor{shape: shape}), do: shape
+
+  # ------- Helper functions for GNx creation -------
+
+  defp get_type_charlist(type) do
+    case type do
+      t when t in [{:f, 32}, :f32] -> Kernel.to_charlist("float")
+      t when t in [{:f, 64}, :f64] -> Kernel.to_charlist("double")
+      t when t in [{:s, 32}, :s32] -> Kernel.to_charlist("int")
+      x -> raise "PolyHok: type #{inspect(x)} is not suported"
+    end
   end
 
-  def get_shape_gnx({:nx, _type, shape, _name, _ref}) do
-    shape
+  defp get_lines_cols(shape) do
+    case shape do
+      {c} -> {1, c}
+      {l, c} -> {l, c}
+      {l1, l2, c} -> {l1 * l2, c}
+    end
   end
 
-  def get_shape({:nx, _type, shape, _name, _ref}) do
-    shape
-  end
+  defp new_gnx_from_nx(array, type, shape, name) do
+    {l, c} = get_lines_cols(shape)
 
-  def new_gnx(%Nx.Tensor{data: data, type: type, shape: shape, names: name}) do
-    %Nx.BinaryBackend{state: array} = data
-    # IO.inspect name
-    # raise "hell"
-    {l, c} =
-      case shape do
-        {c} -> {1, c}
-        {l, c} -> {l, c}
-        {l1, l2, c} -> {l1 * l2, c}
-      end
-
-    ref =
-      case type do
-        {:f, 32} -> create_gpu_array_nx_nif(array, l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> create_gpu_array_nx_nif(array, l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> create_gpu_array_nx_nif(array, l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
+    t_charlist = get_type_charlist(type)
+    ref = @backend.new_gpu_array_from_nx_nif(array, l, c, t_charlist)
 
     {:nx, type, shape, name, ref}
   end
 
-  def new_gnx(l, c, type) do
-    # IO.puts "aque"
-    ref =
-      case type do
-        {:f, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> new_gpu_array_nif(l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
+  defp new_empty_gnx(shape, type) do
+    {l, c} = get_lines_cols(shape)
 
-    {:nx, type, {l, c}, [nil, nil], ref}
+    t_charlist = get_type_charlist(type)
+    ref = @backend.new_empty_gpu_array_nif(l, c, t_charlist)
+
+    {:nx, type, shape, nil, ref}
   end
 
-  def new_gnx({c}, type) do
-    l = 1
-    # IO.puts "aque"
-    ref =
-      case type do
-        {:f, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> new_gpu_array_nif(l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
+  # ------- GNx functions -------
 
-    {:nx, type, {c}, [nil], ref}
+  # === New GNx from existing Nx tensor
+  def new_gnx(
+    %Nx.Tensor{
+      data: data,
+      type: type,
+      shape: shape,
+      names: name
+      }
+    ) do
+    %Nx.BinaryBackend{state: array} = data
+    new_gnx_from_nx(array, type, shape, name)
   end
 
-  def new_gnx({l, c}, type) do
-    # IO.puts "aque"
-    ref =
-      case type do
-        {:f, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> new_gpu_array_nif(l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
-
-    {:nx, type, {l, c}, [nil, nil], ref}
+  # === New empty GNx
+  def new_gnx(shape, type) do
+    new_empty_gnx(shape, type)
   end
 
-  def new_gnx({d1, d2, d3}, type) do
-    {l, c} = {d1 * d2, d3}
+  def get_gnx({:nx, type, shape, name, gnx_ref}) do
+    {l, c} = get_lines_cols(shape)
+    t_charlist = get_type_charlist(type)
 
-    ref =
-      case type do
-        {:f, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> new_gpu_array_nif(l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> new_gpu_array_nif(l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
+    nx_bin = @backend.get_gpu_array_nif(gnx_ref, l, c, t_charlist)
 
-    {:nx, type, {d1, d2, d3}, [nil, nil, nil], ref}
+    Nx.from_binary(nx_bin, type) |> Nx.reshape(shape, names: name)
   end
 
-  def get_gnx({:nx, type, shape, name, ref}) do
-    # IO.puts "aqui..."
-    {l, c} =
-      case shape do
-        {c} -> {1, c}
-        {l, c} -> {l, c}
-        {d1, d2, d3} -> {d1 * d2, d3}
-      end
-
-    ref =
-      case type do
-        {:f, 32} -> get_gpu_array_nif(ref, l, c, Kernel.to_charlist("float"))
-        {:f, 64} -> get_gpu_array_nif(ref, l, c, Kernel.to_charlist("double"))
-        {:s, 32} -> get_gpu_array_nif(ref, l, c, Kernel.to_charlist("int"))
-        x -> raise "new_gnx: type #{x} not suported"
-      end
-
-    %Nx.Tensor{data: %Nx.BinaryBackend{state: ref}, type: type, shape: shape, names: name}
-  end
-
+  # ----------------- Nx creation from function (I will re-do this later) -----------------
   def new_nx_from_function(l, c, type, fun) do
     size = l * c
 
@@ -345,33 +291,57 @@ defmodule PolyHok do
     synchronize_nif()
   end
 
-  ############################################################## Loading types and asts from files
+  @doc """
+  Loads the Abstract Syntax Tree (AST) for a given kernel or function used inside a kernel.
+
+  This function tries to extract the module and function name from the provided kernel function reference (assuming to be a kernel).
+  If it is a kernel, then the name is extracted this way. If it is a function name, the name is already provided (is the atom itself).
+
+  With the name, a message is sent to the `:module_server` process to request the AST for the specified function.
+  The function then waits for a response from the `:module_server` process and returns the AST. If it fails, an error is raised.
+
+  ## Parameters
+
+    - `kernel`: A function reference (e.g., `&Module.function/arity`) representing the kernel function whose AST is to be loaded. Or
+    a function name atom (e.g., `:function_name`) representing a function used inside a kernel.
+
+  ## Returns
+
+    - The AST of the specified kernel function.
+
+  ## Raises
+
+    - Raises an error if an unknown message is received from the `:module_server`.
+  """
   def load_ast(kernel) do
+    # The function may receives a kernel function reference (like `&Module.function/arity`), so we need to extract
+    # the module and function name from it.
+    # The Macro.escape is used to convert the function reference into a form that can be pattern matched.
+    # The pattern matching extracts the module and function name from the function reference.
     {_module, f_name} =
       case Macro.escape(kernel) do
         {:&, [], [{:/, [], [{{:., [], [module, f_name]}, [no_parens: true], []}, _nargs]}]} ->
           {module, f_name}
 
+        # This fallback is used in case we receive a function name directly (for functions used inside kernels).
         f ->
           {:ok, f}
-          # _ -> raise "Argument to spawn should be a function."
       end
 
-    # bytes = File.read!("c_src/#{module}.asts")
-    # map_asts = :erlang.binary_to_term(bytes)
-    # IO.inspect map_size(map_asts)
-    # {ast,_typed?,_types} = Map.get(map_asts,String.to_atom("#{f_name}"))
-    # ast
-
+    # Asks the `:module_server` process to get the AST for the specified function name.
     send(:module_server, {:get_ast, f_name, self()})
 
+    # Waits for a response from the `:module_server` process and returns the AST.
+    # If an unknown message is received, we raise an error.
     receive do
       {:ast, ast} -> ast
-      h -> raise "unknown message for function type server #{inspect(h)}"
+      h -> raise "unknown message from module server #{inspect(h)}"
     end
   end
 
   #########################
+  defp process_args_no_fun([]), do: []
+
   defp process_args_no_fun([{:anon, _name, _type} | t1]) do
     process_args_no_fun(t1)
   end
@@ -387,8 +357,6 @@ defmodule PolyHok do
   defp process_args_no_fun([arg | t1]) do
     [arg | process_args_no_fun(t1)]
   end
-
-  defp process_args_no_fun([]), do: []
 
   # ----------------- JIT compilation and kernel spawning -----------------
 
@@ -521,27 +489,5 @@ defmodule PolyHok do
     #       # List of the inferred types for 'args'
     #       types_args = JIT.get_types_para(kast, inf_types)
     #   end
-  end
-
-  # ------------------------------ NIF Stubs ------------------------------
-
-  defp new_gpu_array_nif(_l, _c, _type) do
-    :erlang.nif_error(:nif_not_loaded)
-  end
-
-  defp get_gpu_array_nif(_matrex, _l, _c, _type) do
-    :erlang.nif_error(:nif_not_loaded)
-  end
-
-  defp create_gpu_array_nx_nif(_matrex, _l, _c, _type) do
-    :erlang.nif_error(:nif_not_loaded)
-  end
-
-  defp synchronize_nif() do
-    :erlang.nif_error(:nif_not_loaded)
-  end
-
-  def jit_compile_and_launch_nif(_n, _k, _t, _b, _size, _types, _l) do
-    :erlang.nif_error(:nif_not_loaded)
   end
 end

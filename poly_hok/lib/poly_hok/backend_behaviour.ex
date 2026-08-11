@@ -31,4 +31,29 @@ defmodule PolyHok.BackendBehaviour do
   @callback gen_para(p, :float) :: String.t()
   @callback gen_para(p, :double) :: String.t()
   @callback gen_para(p, fun_type) :: String.t() | nil
+
+  # -------------- NIFs ----------------
+  @type l :: integer()
+  @type c :: integer()
+  @type type :: charlist()
+
+  @type kernel_name :: charlist()
+  @type kernel_code :: charlist()
+  @type kernel_resource :: any()
+
+  @type blocks :: tuple()
+  @type threads :: tuple()
+  @type len_args :: integer()
+  @type types_args :: list()
+  @type args :: list()
+
+  @type nx :: any()
+  @type gnx :: any()
+
+  @callback new_empty_gpu_array_nif(l, c, type) :: any()
+  @callback new_gpu_array_from_nx_nif(nx, l, c, type) :: any()
+  @callback get_gpu_array_nif(gnx, l, c, type) :: any()
+  @callback synchronize_nif() :: any()
+  @callback jit_compile_nif(kernel_name, kernel_code) :: any()
+  @callback jit_launch_nif(kernel_resource, blocks, threads, len_args, types_args, args) :: any()
 end

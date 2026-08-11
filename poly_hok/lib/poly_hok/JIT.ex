@@ -814,7 +814,6 @@ defmodule JIT do
     formal_para
     |> preprocess_formal_parameters()
     |> Enum.zip(inferred_types)
-    |> Orchestra.TypeInference.process_atomic_parameters_delta()
     |> Map.new()
   end
 
@@ -1186,7 +1185,7 @@ defmodule JIT do
         {fname, _, _para} = header
 
         # Travels the function body and adds a return statement if the function returns an expression
-        body = Orchestra.TypeInference.add_return(Map.put(%{}, :return, :none), body)
+        body = PolyHok.TypeInference.add_return(body)
 
         # IO.inspect(body, label: "body with return added")
 

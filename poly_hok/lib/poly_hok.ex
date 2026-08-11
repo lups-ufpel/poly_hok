@@ -1,13 +1,20 @@
 defmodule PolyHok do
   @on_load :on_load_callback
+  @cache_map %{}
 
   defp on_load_callback() do
-    IO.puts("[PolyHok] Loading backend: #{backend()}")
+    case Application.fetch_env(:poly_hok, :backend) do
+      {:ok, backend} ->
+        @cache_map = Map.put(@cache_map, :backend, backend)
+
+      :error ->
+        raise "PolyHok: backend not configured. Please set the backend in your config/runtime.exs file."
+    end
+
+    IO.puts("[PolyHok] Configured backend: #{backend()}")
   end
 
-  def backend() do
-    Application.fetch_env!(:poly_hok, :backend)
-  end
+  def backend(), do: @cache_map[:backend]
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
     body = PolyHok.TypeInference.add_return(body)

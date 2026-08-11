@@ -1,6 +1,6 @@
 {
 	"folders": [
-		{ "path": "polyhok" },
+		{ "path": "poly_hok" },
 		{ "path": "backends/cuda_backend" },
 		{ "path": "backends/opencl_backend" }
 	]

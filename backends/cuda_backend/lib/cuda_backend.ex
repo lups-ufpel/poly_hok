@@ -1,4 +1,4 @@
-defmodule PolyHok.CudaBackend do
+defmodule CudaBackend do
   ########
   # Generating a new module in pure Elixir to substitute the PolyHok module in the Elixir program
   ################

@@ -387,7 +387,7 @@ defmodule PolyHok do
     {kast, l} = JIT.closure_elimination(kast, l)
 
     # Generates initial delta based on the types of the actual parameters
-    initial_delta = JIT.gen_types_delta(kast, l)
+    initial_delta = JIT.gen_kernel_initial_delta(kast, l)
     # Map of kernel_function_para -> actual_name_in_code
     subs = JIT.get_function_parameters(kast, l)
 
@@ -412,7 +412,7 @@ defmodule PolyHok do
     #         # Now we need to sort these functions in the correct order of inference
     #         |> JIT.sort_functions_by_call_graph()
 
-    #       inner_funs_delta = JIT.infer_device_functions_types(fun_graph_asts_sorted)
+    #       inner_funs_delta = JIT.infer_device_functions_signature(fun_graph_asts_sorted)
 
     #       delta = Map.merge(initial_delta, inner_funs_delta)
 

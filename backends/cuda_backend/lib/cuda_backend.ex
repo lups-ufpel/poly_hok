@@ -430,6 +430,15 @@ defmodule CudaBackend do
       "\n}\n"
   end
 
+  def check_fun(fun) do
+    send(:types_server, {:check_fun, fun, self()})
+
+    receive do
+      {:fun_info, nn} -> nn
+      h -> raise "Unknown message from type server #{inspect(h)}"
+    end
+  end
+
   defp types_server(used, types, module, subs) do
     receive do
       {:module, pid} ->

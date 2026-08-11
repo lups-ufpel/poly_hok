@@ -5,8 +5,21 @@ defmodule CudaBackend do
   @behaviour PolyHok.BackendBehaviour
   @on_load :load_nifs
 
-  def load_nifs do
-    :erlang.load_nif("./priv/gpu_nifs", 0)
+  # This function is an @on_load callback that is called when the module is loaded.
+  # It attempts to load the NIF (Native Implemented Function) library from the specified path.
+  # It prints a success message if the library is loaded successfully, and an error otherwise.
+  # The BEAM VM is shut down if the NIF fails to load.
+  def load_nifs() do
+    ret = :erlang.load_nif(to_charlist("./priv/gpu_nifs"), 0)
+
+    case ret do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Failed to load NIF: #{inspect(reason)}")
+        :erlang.nif_error(reason)
+    end
   end
 
   @doc """

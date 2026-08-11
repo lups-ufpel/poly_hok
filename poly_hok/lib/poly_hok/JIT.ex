@@ -1,6 +1,4 @@
 defmodule JIT do
-  @backend Application.compile_env!(:poly_hok, :backend)
-
   # Preprocesses the formal parameters of a function by extracting the variable names from the tuples in the list. It returns a list of variable names as atoms.
   defp preprocess_formal_parameters(formal_para) do
     formal_para
@@ -11,7 +9,7 @@ defmodule JIT do
   # representing the parameter list in the target code, where each parameter is represented by its type and name.
   defp get_param_str(processed_para, inf_types) do
     processed_para
-    |> Enum.map(fn p -> @backend.gen_para(p, Map.get(inf_types, p)) end)
+    |> Enum.map(fn p -> PolyHok.backend().gen_para(p, Map.get(inf_types, p)) end)
     |> Enum.filter(fn p -> p != nil end)
     |> Enum.join(", ")
   end
@@ -54,9 +52,9 @@ defmodule JIT do
 
     fun_type = Map.get(inf_types, :return)
 
-    code_body = @backend.gen_code(body, inf_types, param_vars, "module", MapSet.new())
+    code_body = PolyHok.backend().gen_code(body, inf_types, param_vars, "module", MapSet.new())
 
-    function = @backend.declare_function(fname, param_str, code_body, fun_type)
+    function = PolyHok.backend().declare_function(fname, param_str, code_body, fun_type)
     function = "\n" <> function <> "\n\n"
 
     {[function], compiled_funs}
@@ -102,7 +100,7 @@ defmodule JIT do
             end
 
           code_body =
-            @backend.gen_code(
+            PolyHok.backend().gen_code(
               body,
               inf_types,
               param_vars,
@@ -110,7 +108,7 @@ defmodule JIT do
               MapSet.new()
             )
 
-          function = @backend.declare_function(fname, param_str, code_body, fun_type)
+          function = PolyHok.backend().declare_function(fname, param_str, code_body, fun_type)
           function = "\n" <> function <> "\n\n"
 
           # Mark itself as compiled in the set of compiled functions
@@ -155,9 +153,9 @@ defmodule JIT do
     param_str = get_param_str(para, inf_types)
     param_vars = get_param_vars(para)
 
-    code_body = @backend.gen_code(body, inf_types, param_vars, "module", subs)
+    code_body = PolyHok.backend().gen_code(body, inf_types, param_vars, "module", subs)
 
-    kernel = @backend.declare_kernel(fname, param_str, code_body)
+    kernel = PolyHok.backend().declare_kernel(fname, param_str, code_body)
 
     "\n" <> kernel <> "\n\n"
   end

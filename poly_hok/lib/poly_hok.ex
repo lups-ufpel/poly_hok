@@ -1,9 +1,12 @@
 defmodule PolyHok do
-  @backend Application.compile_env!(:poly_hok, :backend)
   @on_load :on_load_callback
 
   defp on_load_callback() do
-    IO.puts("[PolyHok] Loading backend: #{@backend}")
+    IO.puts("[PolyHok] Loading backend: #{backend()}")
+  end
+
+  def backend() do
+    Application.fetch_env!(:poly_hok, :backend)
   end
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
@@ -106,7 +109,7 @@ defmodule PolyHok do
     {:__aliases__, _, [module_name]} = header
     JIT.process_module(module_name, body)
 
-    ast_new_module = @backend.gen_new_module(header, body)
+    ast_new_module = backend().gen_new_module(header, body)
     ast_new_module
   end
 
@@ -154,7 +157,7 @@ defmodule PolyHok do
     {l, c} = get_lines_cols(shape)
 
     t_charlist = get_type_charlist(type)
-    ref = @backend.new_gpu_array_from_nx_nif(array, l, c, t_charlist)
+    ref = backend().new_gpu_array_from_nx_nif(array, l, c, t_charlist)
 
     {:nx, type, shape, name, ref}
   end
@@ -163,7 +166,7 @@ defmodule PolyHok do
     {l, c} = get_lines_cols(shape)
 
     t_charlist = get_type_charlist(type)
-    ref = @backend.new_empty_gpu_array_nif(l, c, t_charlist)
+    ref = backend().new_empty_gpu_array_nif(l, c, t_charlist)
 
     {:nx, type, shape, nil, ref}
   end
@@ -192,7 +195,7 @@ defmodule PolyHok do
     {l, c} = get_lines_cols(shape)
     t_charlist = get_type_charlist(type)
 
-    nx_bin = @backend.get_gpu_array_nif(gnx_ref, l, c, t_charlist)
+    nx_bin = backend().get_gpu_array_nif(gnx_ref, l, c, t_charlist)
 
     Nx.from_binary(nx_bin, type) |> Nx.reshape(shape, names: name)
   end
@@ -293,7 +296,7 @@ defmodule PolyHok do
       )
 
   def synchronize() do
-    @backend.synchronize_nif()
+    backend().synchronize_nif()
   end
 
   @doc """

@@ -1,10 +1,41 @@
 defmodule PolyHok do
+  @moduledoc """
+  This is PolyHok's core module. It provides the main interface for the
+  PolyHok DSL, containing macros for defining PolyHok modules, GPU kernels
+  and device functions, as well as functions for creating and manipulating
+  GNx (GPU Nx) tensors.
+
+  This module does not contain any API-specific implementation (e.g
+  OpenCL, CUDA, etc). Instead, we delegate this implementation to the
+  backend module, that must implement the `PolyHok.BackendBehaviour`
+  behaviour.
+
+  The user can set the backend module it wants to use by configuring
+  the config/runtime.exs file. We then load the backend module at
+  runtime using `:persistent_term` storage and delegate the calls
+  to it. This allows PolyHok to be decoupled from any specific
+  backend implementation, and makes it easy to add new backends
+  in the future.
+  """
+
   @doc """
   Returns the current backend module used by PolyHok.
 
   Runs in constant O(1) time, as it uses persistent_term storage.
   """
+  @spec backend() :: module()
   def backend(), do: :persistent_term.get({PolyHok, :backend})
+
+  @doc """
+  Check if a given function is implemented in the backend.
+
+  Used for optional callbacks in the backend behaviour.
+  """
+  @spec exists_in_backend?(atom(), arity()) :: boolean()
+  def exists_in_backend?(function_name, arity) do
+    b = backend()
+    Code.ensure_loaded?(b) and function_exported?(b, function_name, arity)
+  end
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
     body = PolyHok.TypeInference.add_return(body)
@@ -125,9 +156,16 @@ defmodule PolyHok do
   end
 
   # ----------------- Debug Logs -----------------
+
+  @dialyzer {:nowarn_function, set_debug_logs: 1}
   def set_debug_logs(enable) do
     Agent.update(:debug_logs_agent, fn _old -> enable end)
-    backend().set_debug_logs_nif(enable)
+
+    if exists_in_backend?(:set_debug_logs_nif, 1) do
+      backend().set_debug_logs_nif(enable)
+    end
+
+    :ok
   end
 
   # ----------------- GPU NX miscellaneous functions -----------------
@@ -180,6 +218,18 @@ defmodule PolyHok do
   # ------- GNx functions -------
 
   # === New GNx from existing Nx tensor
+  @doc """
+  Creates a new GNx (GPU Nx) from an existing Nx tensor.
+
+  ## Parameters
+
+    - `tensor`: An Nx tensor from which to create the GNx.
+
+  ## Returns
+
+    - A GNx with tha same shape and type as the provided Nx tensor, containing the same data but stored in GPU memory.
+
+  """
   def new_gnx(%Nx.Tensor{
         data: data,
         type: type,
@@ -191,10 +241,36 @@ defmodule PolyHok do
   end
 
   # === New empty GNx
+  @doc """
+  Creates a new empty GNx (GPU Nx) with the specified shape and type.
+
+  ## Parameters
+
+    - `shape`: A tuple representing the shape of the GNx (e.g., `{rows, cols}`).
+    - `type`: The data type of the GNx (e.g., `{:f, 32}` for 32-bit float).
+
+  ## Returns
+
+    - A new empty GNx with the specified shape and type.
+
+  """
   def new_gnx(shape, type) do
     new_empty_gnx(shape, type)
   end
 
+  # === Get GNx from GPU memory as an Nx tensor in RAM
+  @doc """
+  Retrieves a GNx (GPU Nx) from GPU memory and as an Nx tensor.
+
+  ## Parameters
+
+    - `gnx`: A GNx to be retrieved.
+
+  ## Returns
+
+    - An Nx tensor with the same shape and type as the provided GNx, containing the data retrieved from GPU memory.
+
+  """
   def get_gnx({:nx, type, shape, name, gnx_ref}) do
     {l, c} = get_lines_cols(shape)
     t_charlist = get_type_charlist(type)

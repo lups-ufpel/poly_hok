@@ -9,7 +9,12 @@ defmodule PolyHok.Application do
         :persistent_term.put({PolyHok, :backend}, backend)
 
       :error ->
-        raise "PolyHok: backend not configured. Please set the backend in your config/runtime.exs file."
+        IO.puts(
+          :stderr,
+          "[PolyHok] Backend not configured. Please set the backend in your config/runtime.exs file."
+        )
+
+        raise "PolyHok: backend not configured."
     end
 
     children = [

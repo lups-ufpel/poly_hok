@@ -1,9 +1,4 @@
 defmodule PolyHok do
-  @on_load :on_load_callback
-  defp on_load_callback() do
-    IO.puts("[PolyHok] Configured backend: #{backend()}")
-  end
-
   # Uses persistent storage to read the backend configuration.
   # It is extremely fast (O(1)).
   def backend(), do: :persistent_term.get({PolyHok, :backend})
@@ -58,6 +53,7 @@ defmodule PolyHok do
                 unquote(e1),
                 PolyHok.phok(fn unquote(arr1), unquote(arr2), unquote(var1) -> unquote(body) end)
               )
+
     r
   end
 
@@ -74,6 +70,7 @@ defmodule PolyHok do
                 unquote(e1),
                 PolyHok.phok(fn unquote(arr1), unquote(arr2), unquote(var1) -> unquote(body) end)
               )
+
     r
   end
 
@@ -101,6 +98,7 @@ defmodule PolyHok do
                   unquote(body)
                 end)
               )
+
     r
   end
 
@@ -173,14 +171,12 @@ defmodule PolyHok do
   # ------- GNx functions -------
 
   # === New GNx from existing Nx tensor
-  def new_gnx(
-    %Nx.Tensor{
-      data: data,
-      type: type,
-      shape: shape,
-      names: name
-      }
-    ) do
+  def new_gnx(%Nx.Tensor{
+        data: data,
+        type: type,
+        shape: shape,
+        names: name
+      }) do
     %Nx.BinaryBackend{state: array} = data
     new_gnx_from_nx(array, type, shape, name)
   end

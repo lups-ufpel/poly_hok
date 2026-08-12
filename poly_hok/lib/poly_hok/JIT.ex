@@ -24,7 +24,7 @@ defmodule JIT do
   Compiles a function or anonymous function into target code.
   ## Parameters
     - `func`: A tuple representing the function to compile. It can be either:
-      - `{:anon, fname, code, type}` for anonymous functions.
+      - `{:anon, lambda_name, {fun_ast, inner_funs}, type_signature}` for anonymous functions.
       - `{name, type}` for named functions.
     - `compiled_funs`: A MapSet of already compiled functions to avoid recompiling functions that were already generated.
   ## Returns
@@ -32,19 +32,19 @@ defmodule JIT do
       - `generated_code` is a list of strings containing the generated code for the function and all the functions it calls (if they were not already compiled).
       - `updated_compiled_funs` is the updated MapSet of compiled functions including the current function.
   """
-  def compile_function({:anon, fname, code, type}, compiled_funs) do
-    delta = gen_delta_from_type(code, type)
+  def compile_function({:anon, lambda_name, {fun_ast, _inner_funs}, type_signature}, compiled_funs) do
+    delta = gen_delta_from_type(fun_ast, type_signature)
 
     inf_types =
-      case infer_types(code, delta, fname) do
+      case infer_types(fun_ast, delta, lambda_name) do
         {:ok, types} ->
           types
 
         {:error, _types, reason} ->
-          raise "Type inference failed for anonymous function #{fname}: #{reason}"
+          raise "Type inference failed for anonymous function #{lambda_name}: #{reason}"
       end
 
-    {:fn, _, [{:->, _, [para, body]}]} = code
+    {:fn, _, [{:->, _, [para, body]}]} = fun_ast
 
     para = preprocess_formal_parameters(para)
     param_str = get_param_str(para, inf_types)
@@ -54,7 +54,7 @@ defmodule JIT do
 
     code_body = PolyHok.backend().gen_code(body, inf_types, param_vars, "module", MapSet.new())
 
-    function = PolyHok.backend().declare_function(fname, param_str, code_body, fun_type)
+    function = PolyHok.backend().declare_function(lambda_name, param_str, code_body, fun_type)
     function = "\n" <> function <> "\n\n"
 
     {[function], compiled_funs}
@@ -847,7 +847,7 @@ defmodule JIT do
           tp when tp in [:s32, {:s, 32}] -> [:tint | infer_types_actual_parameters(t)]
         end
 
-      {:anon, _name, _code} ->
+      {:anon, _name, _fun_inn_funs} ->
         [:none | infer_types_actual_parameters(t)]
 
       float when is_float(float) ->
@@ -934,8 +934,8 @@ defmodule JIT do
   ## Returns
     - The atom representing the function name.
   """
-  def get_function_name({:anon, name, _code}) do
-    name
+  def get_function_name({:anon, lambda_name, _fun_inn_funs}) do
+    lambda_name
   end
 
   def get_function_name(fun) do
@@ -979,14 +979,14 @@ defmodule JIT do
 
   def is_anon(func) do
     case func do
-      {:anon, _name, _code} -> true
+      {:anon, _name, _fun_inn_funs} -> true
       _ -> false
     end
   end
 
   def is_function_para(func) do
     case func do
-      {:anon, _name, _code} -> true
+      {:anon, _name, _fun_inn_funs} -> true
       func when is_function(func) -> true
       _h -> false
     end
@@ -1009,7 +1009,7 @@ defmodule JIT do
   @doc """
   Returns a list of tuples {actual_function_name, type} of all formal parameters that are functions.
 
-  If the actual parameter is an anonymous function, it returns {:anon, name, code, type}.
+  If the actual parameter is an anonymous function, it returns {:anon, name, _fun_inn_funs, type}.
   """
   def get_function_parameters_and_their_types({:defk, _, [header, [_body]]}, actual_para, delta) do
     {_, _, formal_para} = header
@@ -1021,7 +1021,7 @@ defmodule JIT do
     |> Enum.filter(fn {_f_p, a_p} -> is_function_para(a_p) end)
     |> Enum.map(fn {f_p, a_p} ->
       case a_p do
-        {:anon, name, code} -> {:anon, name, code, delta[f_p]}
+        {:anon, name, fun_inn_funs} -> {:anon, name, fun_inn_funs, delta[f_p]}
         _ -> {get_function_name(a_p), delta[f_p]}
       end
     end)

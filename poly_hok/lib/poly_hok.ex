@@ -62,13 +62,18 @@ defmodule PolyHok do
   end
 
   defmacro phok({:fn, aa, [{:->, bb, [para, body]}]}) do
-    # IO.inspect "body: #{inspect body}"
-    body = PolyHok.TypeInference.add_return(body)
-    funs = JIT.find_functions({:fn, aa, [{:->, bb, [para, body]}]})
-    name = "anon_" <> gen_lambda_name()
-    function = {:fn, aa, [{:->, bb, [para, body]}]}
-    resp = quote(do: {:anon, unquote(name), {unquote(Macro.escape(function)), unquote(funs)}})
-    resp
+    # Adding return to body and update fun
+    new_body = PolyHok.TypeInference.add_return(body)
+    fun = {:fn, aa, [{:->, bb, [para, new_body]}]}
+
+    # Find inner functions calls and create lambda name
+    inner_funs = JIT.find_functions(fun)
+    lambda_name = "anon_" <> gen_lambda_name()
+
+    # Return formatted as {:anon, lambda_name, {fun, inner_funs}}
+    quote do
+      {:anon, unquote(lambda_name), {unquote(Macro.escape(fun)), unquote(inner_funs)}}
+    end
   end
 
   defmacro gpu_for({:<-, _, [var, tensor]}, do: b) do
@@ -431,7 +436,7 @@ defmodule PolyHok do
   defp process_args_no_fun([]), do: []
 
   # Ignoring anonymous function references
-  defp process_args_no_fun([{:anon, _name, _type} | t1]) do
+  defp process_args_no_fun([{:anon, _lambda_name, _fun_inn_funs} | t1]) do
     process_args_no_fun(t1)
   end
 
@@ -487,7 +492,7 @@ defmodule PolyHok do
     kernel_map_key = {kernel_name, kernel_types_and_funs}
 
     # ============ temp debug
-    IO.inspect(l, label: "provided args")
+    IO.inspect(l, label: "provided args (l var)")
     IO.inspect(initial_delta, label: "initial delta")
     IO.inspect(subs, label: "subs")
     IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")
@@ -536,6 +541,7 @@ defmodule PolyHok do
           param_funs = JIT.get_function_parameters_and_their_types(kast, l, kernel_types_map)
 
           # Creates a list of tuples where each tuple contains a function name and its inferred type signature
+          # These functions were not passed as parameters but were called inside the kernel
           other_funs =
             fun_graph_asts_sorted
             # Creates the tuple {function_name, inferred_type}

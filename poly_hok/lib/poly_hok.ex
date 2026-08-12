@@ -427,21 +427,25 @@ defmodule PolyHok do
     end
   end
 
-  #########################
+  # Get the kernel arguments that are not functions
   defp process_args_no_fun([]), do: []
 
+  # Ignoring anonymous function references
   defp process_args_no_fun([{:anon, _name, _type} | t1]) do
     process_args_no_fun(t1)
   end
 
+  # GNx: only store the array reference
   defp process_args_no_fun([{:nx, _type, _shape, _name, ref} | t1]) do
     [ref | process_args_no_fun(t1)]
   end
 
+  # Ignoring function references
   defp process_args_no_fun([arg | t1]) when is_function(arg) do
     process_args_no_fun(t1)
   end
 
+  # Everything else is passed as is
   defp process_args_no_fun([arg | t1]) do
     [arg | process_args_no_fun(t1)]
   end
@@ -451,7 +455,7 @@ defmodule PolyHok do
   @doc """
   Spwans a kernel with JIT compilation.
 
-  Generates the OpenCL kernel code for the given kernel, compiles it, and queues it for execution.
+  Generates the kernel code for the given kernel, compiles it and executes it on the GPU.
 
   ## Parameters
 
@@ -479,103 +483,126 @@ defmodule PolyHok do
     # Map of kernel_function_para -> actual_name_in_code
     subs = JIT.get_function_parameters(kast, l)
 
+    kernel_types_and_funs = Map.merge(initial_delta, subs) |> Map.to_list()
+    kernel_map_key = {kernel_name, kernel_types_and_funs}
+
     # ============ temp debug
+    IO.inspect(l, "provided args")
     IO.inspect(initial_delta, label: "initial delta")
     IO.inspect(subs, label: "subs")
+    IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")
 
-    System.halt()
+    send(:module_server, {:get_kernel, kernel_map_key, self()})
 
-    # kernel_types_funs = Map.merge(delta, subs) |> Map.to_list()
-    # map_key = {kernel_name, kernel_types_funs}
+    {kernel_res, types_args} =
+      receive do
+        # First time launching this kernel with this set of types
+        {:kernel, nil} ->
+          # Get functions used inside the kernel that are not parameters of the kernel
+          fun_graph_asts_sorted =
+            JIT.get_non_parameters_func_asts(fun_graph)
+            # Now we need to sort these functions in the correct order of inference
+            |> JIT.sort_functions_by_call_graph()
 
-    # send(:module_server, {:get_kernel, map_key, self()})
+          inner_funs_delta = JIT.infer_device_functions_signature(fun_graph_asts_sorted)
 
-    # # ---------------------------------------------------
+          ker_inn_funs_delta = Map.merge(initial_delta, inner_funs_delta)
 
-    # {kernel_res, types_args} =
-    #   receive do
-    #     {:kernel, nil} ->
-    #       fun_graph_asts_sorted =
-    #         JIT.get_non_parameters_func_asts(fun_graph)
-    #         # Now we need to sort these functions in the correct order of inference
-    #         |> JIT.sort_functions_by_call_graph()
+          # Infers the types of the kernel's variables using the new ker_inn_funs_delta map
+          kernel_types_map =
+            case JIT.infer_types(kast, ker_inn_funs_delta, kernel_name) do
+              {:ok, types} -> types
+              {:error, _types, reason} -> raise "Type inference failed: #{reason}"
+            end
 
-    #       inner_funs_delta = JIT.infer_device_functions_signature(fun_graph_asts_sorted)
+          # Check if the inferred types contain 'double' or 'tdouble' types since some backends may not
+          # support double precision floating point operations (fp64).
+          # If the backend implements the `double_supported_nif/0` function, we need to check this.
+          if exists_in_backend?(:double_supported_nif, 0) do
+            contains_double =
+              Map.values(kernel_types_map)
+              |> Enum.any?(fn x -> x == :double or x == :tdouble end)
 
-    #       delta = Map.merge(initial_delta, inner_funs_delta)
+            # If double precision is used, check if the device supports it.
+            if contains_double and not backend().double_supported_nif() do
+              raise "[PolyHok] Your device does not support double precision floating point operations (fp64). The 'double' data type cannot be used in kernels."
+            end
+          end
 
-    #       # Infers the types of the kernel's variables using the new delta map
-    #       inf_types =
-    #         case JIT.infer_types(kast, delta, kernel_name) do
-    #           {:ok, types} -> types
-    #           {:error, _types, reason} -> raise "Type inference failed: #{reason}"
-    #         end
+          # Generates kernel string in CUDA/OpenCL/etc
+          kernel = JIT.compile_kernel(kast, kernel_types_map, subs)
 
-    #       ## --------------- THE INFAMOUS DOUBLE CHECK ----------------------##
-    #       # I'll have to figure a way to do this across different backends. This
-    #       # check is specifically for OCL-PolyHok...
+          # Get a list of tuples {actual_function_param, type} for all formal parameters that are functions.
+          param_funs = JIT.get_function_parameters_and_their_types(kast, l, kernel_types_map)
 
-    #       # # Check if the inferred types contain 'double' or 'tdouble' types
-    #       # contains_double =
-    #       #   Map.values(inf_types) |> Enum.any?(fn x -> x == :double or x == :tdouble end)
+          # Creates a list of tuples where each tuple contains a function name and its inferred type signature
+          other_funs =
+            fun_graph_asts_sorted
+            # Creates the tuple {function_name, inferred_type}
+            |> Enum.map(fn {x, _ast} -> {x, kernel_types_map[x]} end)
+            # Remove functions that could not be inferred
+            |> Enum.filter(fn {_, i} -> i != nil end)
 
-    #       # # If double precision is used, check if the device supports it.
-    #       # if contains_double and not double_supported_nif() do
-    #       #   raise "[OCL-PolyHok] Your OpenCL device does not support double precision floating point operations (fp64). The 'double' data type cannot be used in kernels."
-    #       # end
+          all_funs = other_funs ++ param_funs
 
-    #       ## --------------------------------------------------------------- ##
+          # The JIT.compile_function/2 function compiles the provided function AND it's dependencies (other functions called within
+          # a function). To avoid recompiling functions that were already compiled, we provide a MapSet of already compiled functions,
+          # so the JIT.compile_function/2 can check and skip a function if necessary.
+          # We also re-infer the device functions here now that we have the kernel delta to guarantee we have the correct types
+          {comp, _compiled_funs} =
+            Enum.reduce(all_funs, {[], MapSet.new()}, fn fun, {code_acc, compiled_funs_acc} ->
+              {new_code, compiled_funs_acc} = JIT.compile_function(fun, compiled_funs_acc)
+              {code_acc ++ new_code, compiled_funs_acc}
+            end)
 
-    #       # Generates kernel string in CUDA/OpenCL/etc
-    #       kernel = JIT.compile_kernel(kast, inf_types, subs)
+          includes = JIT.get_includes()
+          prog = [includes | comp] ++ [kernel]
 
-    #       # Get a list of tuples {actual_function_param, type} for all formal parameters that are functions.
-    #       param_funs = JIT.get_function_parameters_and_their_types(kast, l, inf_types)
+          # Concatenating the generated code into a single string
+          prog = Enum.reduce(prog, "", fn x, y -> y <> x end)
 
-    #       # Creates a list of tuples where each tuple contains a function name and its inferred type signature
-    #       other_funs =
-    #         fun_graph_asts_sorted
-    #         |> Enum.map(fn {x, _ast} -> {x, inf_types[x]} end)
-    #         # Remove functions that could not be inferred
-    #         |> Enum.filter(fn {_, i} -> i != nil end)
+          debug_logs = Agent.get(:debug_logs_agent, fn state -> state end)
 
-    #       all_funs = other_funs ++ param_funs
+          # Print generated code for debugging purposes if debug logs are enabled
+          if debug_logs do
+            IO.puts("===== Generated code for kernel '#{kernel_name}' =====")
 
-    #       # The JIT.compile_function/2 function compiles the provided function AND it's dependencies (other functions called within
-    #       # a function). To avoid recompiling functions that were already compiled, we provide a MapSet of already compiled functions,
-    #       # so the JIT.compile_function/2 can check and skip a function if necessary.
-    #       # We also re-infer the device functions here now that we have the kernel delta to guarantee we have the correct types
-    #       {comp, _compiled_funs} =
-    #         Enum.reduce(all_funs, {[], MapSet.new()}, fn fun, {code_acc, compiled_funs_acc} ->
-    #           {new_code, compiled_funs_acc} = JIT.compile_function(fun, compiled_funs_acc)
-    #           {code_acc ++ new_code, compiled_funs_acc}
-    #         end)
+            # We don't print the includes to reduce clutter
+            case comp do
+              [] -> IO.puts(kernel)
+              l -> IO.puts(Enum.reduce(l, "", fn x, y -> y <> x end) <> kernel)
+            end
 
-    #       includes = JIT.get_includes()
-    #       prog = [includes | comp] ++ [kernel]
+            IO.puts("==============================================================")
+          end
 
-    #       # Concatenating the generated code into a single string
-    #       prog = Enum.reduce(prog, "", fn x, y -> y <> x end)
+          # List of the inferred types for 'args'
+          types_args = JIT.get_types_para(kast, kernel_types_map)
 
-    #       # Print generated code for debugging purposes if debug logs are enabled
-    #       debug_logs = Agent.get(:debug_logs_agent, fn state -> state end)
+          # Compile the kernel with the JIT compiler and get a reference to the compiled kernel that can be used to launch it
+          kernel_res =
+            backend().jit_compile_nif(
+              Kernel.to_charlist(kernel_name),
+              Kernel.to_charlist(prog)
+            )
 
-    #       if debug_logs do
-    #         IO.puts("===== Generated code for kernel '#{kernel_name}' =====")
+          # We store this compiled kernel reference and it's types_args in the module server, so we can
+          # cache it and reuse it in future executions of the same kernel with the same types, avoiding recompilation
+          send(:module_server, {:add_kernel, kernel_map_key, {kernel_res, types_args}})
 
-    #         # We don't print the includes to reduce clutter
-    #         case comp do
-    #           [] -> IO.puts(kernel)
-    #           l -> IO.puts(Enum.reduce(l, "", fn x, y -> y <> x end) <> kernel)
-    #         end
+          {kernel_res, types_args}
 
-    #         IO.puts("==============================================================")
-    #       end
+        {:kernel, {kernel_res, types_args}} ->
+          # Kernel was already compiled and cached
+          {kernel_res, types_args}
+      end
 
-    #       # List of the actual arguments passed to the kernel except functions
-    #       args = process_args_no_fun(l)
-    #       # List of the inferred types for 'args'
-    #       types_args = JIT.get_types_para(kast, inf_types)
-    #   end
+    # 'args' is a list of the actual arguments passed to the kernel, processed to remove any function references
+    args = process_args_no_fun(l)
+
+    # Now with the kernel reference and the types of the arguments, we can launch the kernel
+    backend().jit_launch_nif(kernel_res, b, t, length(args), types_args, args)
+
+    :ok
   end
 end

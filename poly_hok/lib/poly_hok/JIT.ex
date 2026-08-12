@@ -1105,9 +1105,12 @@ defmodule JIT do
   end
 
   @doc """
-  This server constructs two maps:
+  This server constructs three maps:
   - Function names to types.
   - Function names to {AST, functions_called}.
+  - Map of compiled kernels.
+    - Keys are {kernel_name, kernel_types_and_funs} tuples
+    - Values are the compiled kernel code as an Erlang resource
 
   Types are used to type check at runtime a kernel call, while ASTs are used to recompile a kernel at runtime,
   substituting the names of the formal parameters of a function for the actual parameters.

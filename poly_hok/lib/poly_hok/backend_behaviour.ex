@@ -56,4 +56,10 @@ defmodule PolyHok.BackendBehaviour do
   @callback synchronize_nif() :: any()
   @callback jit_compile_nif(kernel_name, kernel_code) :: any()
   @callback jit_launch_nif(kernel_resource, blocks, threads, len_args, types_args, args) :: any()
+
+  # -------------- Optional Callbacks ----------------
+  @callback set_debug_logs_nif(boolean()) :: integer()
+  @callback double_supported_nif() :: boolean()
+
+  @optional_callbacks [set_debug_logs_nif: 1, double_supported_nif: 0]
 end

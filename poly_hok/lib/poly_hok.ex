@@ -1,6 +1,9 @@
 defmodule PolyHok do
-  # Uses persistent storage to read the backend configuration.
-  # It is extremely fast (O(1)).
+  @doc """
+  Returns the current backend module used by PolyHok.
+
+  Runs in constant O(1) time, as it uses persistent_term storage.
+  """
   def backend(), do: :persistent_term.get({PolyHok, :backend})
 
   defmacro clo({:fn, aa, [{:->, bb, [para, body]}]}) do
@@ -119,6 +122,12 @@ defmodule PolyHok do
   """
   def gen_lambda_name() do
     for _ <- 1..10, into: "", do: <<Enum.random(~c"0123456789abcdefghijklmno")>>
+  end
+
+  # ----------------- Debug Logs -----------------
+  def set_debug_logs(enable) do
+    Agent.update(:debug_logs_agent, fn _old -> enable end)
+    backend().set_debug_logs_nif(enable)
   end
 
   # ----------------- GPU NX miscellaneous functions -----------------

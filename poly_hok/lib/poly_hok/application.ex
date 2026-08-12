@@ -3,6 +3,15 @@ defmodule PolyHok.Application do
 
   @impl true
   def start(_type, _args) do
+    case Application.fetch_env(:poly_hok, :backend) do
+      {:ok, backend} ->
+        # Saving the backend in Erlang's persistent storage. It is extremely fast to read from.
+        :persistent_term.put({PolyHok, :backend}, backend)
+
+      :error ->
+        raise "PolyHok: backend not configured. Please set the backend in your config/runtime.exs file."
+    end
+
     children = [
       %{
         id: :debug_logs_agent,

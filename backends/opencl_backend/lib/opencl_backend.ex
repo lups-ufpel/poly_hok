@@ -546,4 +546,14 @@ defmodule OpenclBackend do
   def jit_launch_nif(_kernel_resource, _blocks, _threads, _len_args, _types_args, _args) do
     :erlang.nif_error(:nif_not_loaded)
   end
+
+  @impl PolyHok.BackendBehaviour
+  def set_debug_logs_nif(_enable) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  @impl PolyHok.BackendBehaviour
+  def double_supported_nif() do
+    :erlang.nif_error(:nif_not_loaded)
+  end
 end

@@ -487,7 +487,7 @@ defmodule PolyHok do
     kernel_map_key = {kernel_name, kernel_types_and_funs}
 
     # ============ temp debug
-    IO.inspect(l, "provided args")
+    IO.inspect(l, label: "provided args")
     IO.inspect(initial_delta, label: "initial delta")
     IO.inspect(subs, label: "subs")
     IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")

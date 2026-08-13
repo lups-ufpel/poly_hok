@@ -6,7 +6,7 @@ PolyHok.defmodule SimpleTest do
   defk simple_kernel(array, size) do
     index = blockIdx.x * blockDim.x + threadIdx.x
 
-    if (index < size) do
+    if index < size do
       array[index] = array[index] + 1.0
     end
   end
@@ -24,10 +24,15 @@ array_gpu = array_cpu |> PolyHok.new_gnx()
 
 # Spawn the kernel to run on the GPU
 PolyHok.spawn(
-          &SimpleTest.simple_kernel/2,  # Kernel function
-          {1, 1, 1},                    # Number of blocks
-          {array_size, 1, 1},           # Threads per block
-          [array_gpu, array_size])      # Kernel parameters
+  # Kernel function
+  &SimpleTest.simple_kernel/2,
+  # Number of blocks
+  {1, 1, 1},
+  # Threads per block
+  {array_size, 1, 1},
+  # Kernel parameters
+  [array_gpu, array_size]
+)
 
 # Get result back to CPU
 result = PolyHok.get_gnx(array_gpu)

@@ -21,7 +21,17 @@ defmodule OpenclBackend.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:poly_hok, git: "https://github.com/lups-ufpel/polyhok.git", sparse: "poly_hok"}
+      poly_hok_dep()
     ]
+  end
+
+  defp poly_hok_dep() do
+    if File.exists?("../../poly_hok") do
+      IO.puts("[INFO] Using local poly_hok dependency (development use only!)")
+
+      {:poly_hok, path: "../../poly_hok"}
+    else
+      {:poly_hok, git: "https://github.com/lups-ufpel/polyhok.git", sparse: "poly_hok"}
+    end
   end
 end

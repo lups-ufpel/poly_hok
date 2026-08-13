@@ -112,17 +112,17 @@ defmodule OpenclBackend do
 
   @impl PolyHok.BackendBehaviour
   def gen_para(p, :tint) do
-    "int *#{p}"
+    "__global int *#{p}"
   end
 
   @impl PolyHok.BackendBehaviour
   def gen_para(p, :tfloat) do
-    "float *#{p}"
+    "__global float *#{p}"
   end
 
   @impl PolyHok.BackendBehaviour
   def gen_para(p, :tdouble) do
-    "double *#{p}"
+    "__global double *#{p}"
   end
 
   @impl PolyHok.BackendBehaviour

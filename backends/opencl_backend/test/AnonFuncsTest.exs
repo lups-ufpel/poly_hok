@@ -1,7 +1,7 @@
 require PolyHok
 
-# PolyHok.set_debug_logs(true)
-PolyHok.TypeInference.set_debug_logs(true)
+PolyHok.set_debug_logs(true)
+# PolyHok.TypeInference.set_debug_logs(true)
 
 PolyHok.defmodule SimpleTest do
   defk simple_kernel(array, size, f) do

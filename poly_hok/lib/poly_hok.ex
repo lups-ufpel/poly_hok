@@ -508,6 +508,10 @@ defmodule PolyHok do
       receive do
         # First time launching this kernel with this set of types
         {:kernel, nil} ->
+          if debug_logs do
+            IO.puts("[PolyHok Kernel Cache] Kernel '#{kernel_name}' not found in cache. Generating code...")
+          end
+
           # Get functions used inside the kernel that are not parameters of the kernel
           fun_graph_asts_sorted =
             JIT.get_non_parameters_func_asts(fun_graph)
@@ -602,6 +606,10 @@ defmodule PolyHok do
           {kernel_res, types_args}
 
         {:kernel, {kernel_res, types_args}} ->
+          if debug_logs do
+            IO.puts("[PolyHok Kernel Cache] Kernel '#{kernel_name}' already compiled and cached. Reusing compiled kernel...")
+          end
+
           # Kernel was already compiled and cached
           {kernel_res, types_args}
       end

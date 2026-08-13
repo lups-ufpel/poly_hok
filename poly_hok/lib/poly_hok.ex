@@ -491,11 +491,16 @@ defmodule PolyHok do
     kernel_types_and_funs = Map.merge(initial_delta, subs) |> Map.to_list()
     kernel_map_key = {kernel_name, kernel_types_and_funs}
 
-    # ============ temp debug
-    IO.inspect(l, label: "provided args (l var)")
-    IO.inspect(initial_delta, label: "initial delta")
-    IO.inspect(subs, label: "subs")
-    IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")
+    # ============ Debug logs ============
+    debug_logs = Agent.get(:debug_logs_agent, fn state -> state end)
+
+    if debug_logs do
+      IO.puts("===== [PolyHok] Debug logs for kernel '#{kernel_name}' =====")
+      IO.inspect(l, label: "provided args (l var)")
+      IO.inspect(initial_delta, label: "initial delta")
+      IO.inspect(subs, label: "subs")
+      IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")
+    end
 
     send(:module_server, {:get_kernel, kernel_map_key, self()})
 
@@ -567,11 +572,9 @@ defmodule PolyHok do
           # Concatenating the generated code into a single string
           prog = Enum.reduce(prog, "", fn x, y -> y <> x end)
 
-          debug_logs = Agent.get(:debug_logs_agent, fn state -> state end)
-
           # Print generated code for debugging purposes if debug logs are enabled
           if debug_logs do
-            IO.puts("===== Generated code for kernel '#{kernel_name}' =====")
+            IO.puts("===== [PolyHok] Generated code for kernel '#{kernel_name}' =====")
 
             # We don't print the includes to reduce clutter
             case comp do

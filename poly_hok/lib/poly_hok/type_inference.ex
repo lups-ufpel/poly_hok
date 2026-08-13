@@ -9,12 +9,12 @@ defmodule PolyHok.TypeInference do
 
   defp type_server(global_map) do
     receive do
-      {:update_types, f_name, types} ->
-        global_map = Map.put(global_map, f_name, types)
+      {:update_types, key = {_f_name, _initial_delta_list}, new_types} ->
+        global_map = Map.put(global_map, key, new_types)
         type_server(global_map)
 
-      {:get_types, f_name, caller} ->
-        send(caller, {:types_response, Map.get(global_map, f_name)})
+      {:get_types, key = {_f_name, _initial_delta_list}, caller} ->
+        send(caller, {:types_response, Map.get(global_map, key)})
         type_server(global_map)
 
       _ ->
@@ -44,17 +44,21 @@ defmodule PolyHok.TypeInference do
 
     logs_en = is_debug_logs_enabled?()
 
+    # The type server keys are in the format {function_name, initial_delta_map_as_list}
+    type_server_key = {f_name, Map.to_list(map)}
+
     if logs_en do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
       IO.puts("[TypeInference] Target function/kernel: #{inspect(f_name)}")
-      IO.inspect(map, label: "[TypeInference] Current types map before iteration")
+      IO.inspect(map, label: "[TypeInference] Provided initial delta map")
+      IO.inspect(type_server_key, label: "[TypeInference] Type server key for this function/kernel")
     end
 
-    # Check if the type server already contains a map for this function. If it does, then it means this function was processed before,
-    # so it may contain some already inferred types that we can use! BUT, the new delta map provided can ALSO contain new info. So if the type server
-    # already has a map for this function, we need to merge the map from the type server with the new map provided as argument.
-    # If the type server doesn't have a map, we need to use the map passed as argument (propably is the initial delta map)
-    send(:type_server, {:get_types, f_name, self()})
+    # Check if the type server already contains a map for this function with this initial delta map. If it does, then it means
+    # this function was processed before, so it may contain some already inferred types that we can use for a faster inference!
+    # I discovered (in the bad way) that we can't reuse an already inferred type map from a previous iteration if the initial
+    # delta map is different, because the initial delta map may contain new information that can change the inference results.
+    send(:type_server, {:get_types, type_server_key, self()})
 
     map =
       receive do
@@ -64,12 +68,9 @@ defmodule PolyHok.TypeInference do
         {:types_response, types} ->
           if logs_en do
             IO.inspect(types, label: "[TypeInference] Retrieved types map from type server")
-            IO.inspect(map, label: "[TypeInference] Provided types map as argument")
           end
 
-          # We need to check if the retrieved types from the type server are the same as the provided map,
-          # because if they are the same, it means that this is probably a new iteration with no new info in the provided
-          # map, so we can use either one.
+          # We need to check if the retrieved type map from the type server is the same as the provided initial delta map
           if types === map do
             # Provided map and type server map are the same, we can use either one
             if logs_en do
@@ -80,24 +81,25 @@ defmodule PolyHok.TypeInference do
 
             map
           else
+            # If the maps are not the same, we merge them
+            merged_map = merge_types_map(map, types)
+
             if logs_en do
               IO.puts(
                 "[TypeInference] Retrieved types map from type server is different from the provided map. Merging them to use the most updated info."
               )
+              IO.inspect(merged_map, label: "[TypeInference] Merged types map")
             end
 
-            # If the maps are not the same, we merge them
-            merge_types_map(map, types)
+            merged_map
           end
-
-          types
       end
 
     types = infer_types(map, body)
     notinfer = not_infered(Map.to_list(types))
 
-    # Update the type map in the type server process
-    send(:type_server, {:update_types, f_name, types})
+    # Update the type map in the type server process using the same key
+    send(:type_server, {:update_types, type_server_key, types})
 
     if logs_en do
       IO.inspect(types, label: "[TypeInference] Types map after iteration")
@@ -110,7 +112,7 @@ defmodule PolyHok.TypeInference do
       notinfer2 = not_infered(Map.to_list(types2))
 
       # Save the latest inferred types in the type server
-      send(:type_server, {:update_types, f_name, types2})
+      send(:type_server, {:update_types, type_server_key, types2})
 
       # Check if something changed
       if length(notinfer) == length(notinfer2) do

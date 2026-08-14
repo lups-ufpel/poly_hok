@@ -15,8 +15,8 @@
 
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
+#include <string>
 #include <chrono>
 
 bool debug_logs = false;
@@ -213,11 +213,10 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_
   }
   else // Unknown type
   {
-    char message[200];
-    snprintf(message, sizeof(message),
-             "[ERROR] (get_gpu_array_nif) copying data from device to host: unknown type %s",
-             type_name);
-    return enif_raise_exception(env, enif_make_string(env, message, ERL_NIF_LATIN1));
+    std::string message =
+        "[ERROR] (get_gpu_array_nif) copying data from device to host: unknown type " +
+        std::string(type_name);
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Allocate memory in the host to store the result
@@ -226,11 +225,10 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_
 
   if (!enif_alloc_binary(data_size, &host_bin))
   {
-    char message[200];
-    snprintf(message, sizeof(message),
-             "[ERROR] (get_gpu_array_nif) failed to allocate binary of size %zu",
-             data_size);
-    return enif_raise_exception(env, enif_make_string(env, message, ERL_NIF_LATIN1));
+    std::string message =
+        "[ERROR] (get_gpu_array_nif) failed to allocate binary of size " +
+        std::to_string(data_size);
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Getting pointer to the allocated binary data in the host
@@ -309,11 +307,9 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int /* argc */, co
   }
   else // Unknown type
   {
-    char message[200];
-    snprintf(message, sizeof(message),
-             "[ERROR] (new_gpu_array_from_nx_nif): unknown type %s",
-             type_name);
-    return enif_raise_exception(env, enif_make_string(env, message, ERL_NIF_LATIN1));
+    std::string message =
+        "[ERROR] (new_gpu_array_from_nx_nif): unknown type " + std::string(type_name);
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   try
@@ -396,11 +392,9 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int /* argc */, cons
   }
   else // Unknown type
   {
-    char message[200];
-    snprintf(message, sizeof(message),
-             "[ERROR] new_empty_gpu_array_nif: unknown type: %s",
-             type_name);
-    return enif_raise_exception(env, enif_make_string(env, message, ERL_NIF_LATIN1));
+    std::string message =
+        "[ERROR] new_empty_gpu_array_nif: unknown type: " + std::string(type_name);
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   try

@@ -7,6 +7,7 @@ defmodule OpenclBackend.MixProject do
       version: "0.1.1",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      compilers: Mix.compilers() ++ [:cmake_compiler],
       deps: deps()
     ]
   end

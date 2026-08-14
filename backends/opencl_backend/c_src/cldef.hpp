@@ -11,7 +11,7 @@
 
 #pragma once
 
-#define OPENCL_VERSION 300 // We are going to be using OpenCL 2.0
+#define OPENCL_VERSION 300 // We are going to be using OpenCL 3.0
 
 #define CL_TARGET_OPENCL_VERSION OPENCL_VERSION
 #define CL_HPP_TARGET_OPENCL_VERSION OPENCL_VERSION

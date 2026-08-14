@@ -145,7 +145,7 @@ defmodule PolyHok do
     {:__aliases__, _, [module_name]} = header
     JIT.process_module(module_name, body)
 
-    ast_new_module = backend().gen_new_module(header, body)
+    ast_new_module = JIT.gen_new_module(header, body)
     ast_new_module
   end
 

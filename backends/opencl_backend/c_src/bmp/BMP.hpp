@@ -26,7 +26,7 @@ private:
     int width;
     int rowSizeBytes; // Size of each row in bytes (including padding)
 
-#pragma pack(1)
+#pragma pack(push, 1)
     struct HEADER
     {
         uint16_t bfType;      // Magic number for BMP files
@@ -36,7 +36,6 @@ private:
         uint32_t bfOffBits;   // Offset to start of pixel data
     } header;
 
-#pragma pack(1)
     struct INFOHEADER
     {
         uint32_t biSize;         // Size of this header (40 bytes)
@@ -51,6 +50,7 @@ private:
         uint32_t biClrUsed;      // Number of colors in the color palette
         uint32_t biClrImportant; // Important colors (0 = all)
     } infoHeader;
+#pragma pack(pop)
 
 public:
     BMP(const char *filename, int width, int height, int bitsPerPixel = 24);

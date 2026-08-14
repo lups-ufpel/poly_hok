@@ -769,13 +769,13 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {.name = "new_empty_gpu_array_nif", .arity = 3, .fptr = new_empty_gpu_array_nif, .flags = 0},
-    {.name = "new_gpu_array_from_nx_nif", .arity = 4, .fptr = new_gpu_array_from_nx_nif, .flags = 0},
-    {.name = "get_gpu_array_nif", .arity = 4, .fptr = get_gpu_array_nif, .flags = 0},
-    {.name = "synchronize_nif", .arity = 0, .fptr = synchronize_nif, .flags = 0},
-    {.name = "set_debug_logs_nif", .arity = 1, .fptr = set_debug_logs_nif, .flags = 0},
-    {.name = "double_supported_nif", .arity = 0, .fptr = double_supported_nif, .flags = 0},
-    {.name = "jit_compile_nif", .arity = 2, .fptr = jit_compile_nif, .flags = 0},
-    {.name = "jit_launch_nif", .arity = 6, .fptr = jit_launch_nif, .flags = 0}};
+    {"new_empty_gpu_array_nif", 3, new_empty_gpu_array_nif, 0},
+    {"new_gpu_array_from_nx_nif", 4, new_gpu_array_from_nx_nif, 0},
+    {"get_gpu_array_nif", 4, get_gpu_array_nif, 0},
+    {"synchronize_nif", 0, synchronize_nif, 0},
+    {"set_debug_logs_nif", 1, set_debug_logs_nif, 0},
+    {"double_supported_nif", 0, double_supported_nif, 0},
+    {"jit_compile_nif", 2, jit_compile_nif, 0},
+    {"jit_launch_nif", 6, jit_launch_nif, 0}};
 
 ERL_NIF_INIT(Elixir.OpenclBackend, nif_funcs, &load, NULL, NULL, &unload)

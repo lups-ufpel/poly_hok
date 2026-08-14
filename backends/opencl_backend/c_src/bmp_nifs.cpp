@@ -103,7 +103,7 @@ static ERL_NIF_TERM gen_bmp_float_nif(ErlNifEnv *env, int /* argc */, const ERL_
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {.name = "gen_bmp_int_nif", .arity = 3, .fptr = gen_bmp_int_nif, .flags = 0},
-    {.name = "gen_bmp_float_nif", .arity = 3, .fptr = gen_bmp_float_nif, .flags = 0}};
+    {"gen_bmp_int_nif", 3, gen_bmp_int_nif, 0},
+    {"gen_bmp_float_nif", 3, gen_bmp_float_nif, 0}};
 
 ERL_NIF_INIT(Elixir.BMP, nif_funcs, NULL, NULL, NULL, NULL)

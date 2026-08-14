@@ -10,7 +10,8 @@ defmodule OpenclBackend do
   # It prints a success message if the library is loaded successfully, and an error otherwise.
   # The BEAM VM is shut down if the NIF fails to load.
   def load_nifs() do
-    ret = :erlang.load_nif(to_charlist("./priv/gpu_nifs"), 0)
+    nif_path = Application.app_dir(:opencl_backend, "priv/gpu_nifs") |> to_charlist()
+    ret = :erlang.load_nif(nif_path, 0)
 
     case ret do
       :ok ->

@@ -1,7 +1,9 @@
 {
 	"folders": [
 		{ "path": "poly_hok" },
+		{ "path": "cmake_compiler" },
 		{ "path": "backends/cuda_backend" },
-		{ "path": "backends/opencl_backend" }
+		{ "path": "backends/opencl_backend" },
+		{ "path": "tools/bmp"}
 	]
 }

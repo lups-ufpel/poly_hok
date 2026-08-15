@@ -22,7 +22,8 @@ defmodule OpenclBackend.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      poly_hok_dep()
+      poly_hok_dep(),
+      {:cmake_compiler, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "cmake_compiler"}
     ]
   end
 

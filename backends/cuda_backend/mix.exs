@@ -7,7 +7,12 @@ defmodule CudaBackend.MixProject do
       version: "0.1.1",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+
+      compilers: Mix.compilers() ++ [:cmake_compiler],
+      cmake_build_dir: "CMakeBuild",
+      cmake_source_dirs: ["c_src", "CMakeLists.txt"],
+      cmake_targets: ["priv/gpu_nifs.so"]
     ]
   end
 
@@ -18,10 +23,20 @@ defmodule CudaBackend.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:poly_hok, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "poly_hok"}
+      poly_hok_dep(),
+      {:cmake_compiler, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "cmake_compiler"}
     ]
+  end
+
+  defp poly_hok_dep() do
+    if File.exists?("../../poly_hok") do
+      IO.puts("[INFO] Using local poly_hok dependency (development use only!)")
+
+      {:poly_hok, path: "../../poly_hok"}
+    else
+      {:poly_hok, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "poly_hok"}
+    end
   end
 end

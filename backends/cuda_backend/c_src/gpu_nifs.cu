@@ -14,7 +14,7 @@ ErlNifResourceType *COMPILED_KERNEL;
 typedef struct _compiled_kernel
 {
   char *ptx;
-  char* kernel_name;
+  char *kernel_name;
 } CompiledKernel;
 
 void dev_array_destructor(ErlNifEnv * /* env */, void *res)
@@ -435,6 +435,13 @@ ERL_NIF_TERM compile_to_ptx(ErlNifEnv *env, std::string &kernel_code, std::strin
       "--include-path=/usr/include/i386-linux-gnu/",
       "--include-path=/usr/local/include"};
 
+  // Register kernel name so we can get the mangled one after compiling
+  rv = nvrtcAddNameExpression(prog, kernel_name.c_str());
+  if (rv != NVRTC_SUCCESS)
+  {
+    return fail_nvrtc(env, rv, "nvrtcAddNameExpression");
+  }
+
   rv = nvrtcCompileProgram(prog, 10, options);
   if (rv != NVRTC_SUCCESS)
   {
@@ -486,9 +493,17 @@ ERL_NIF_TERM compile_to_ptx(ErlNifEnv *env, std::string &kernel_code, std::strin
   // Save the compiled PTX code pointer and kernel name in the CompiledKernel resource
   compiled_kernel->ptx = ptx_code;
 
-  // Allocate memory for the kernel name and copy it to the CompiledKernel resource
-  compiled_kernel->kernel_name = new char[kernel_name.size() + 1];
-  strcpy(compiled_kernel->kernel_name, kernel_name.c_str());
+  // Allocate memory for the kernel name and copy the mangled name to the CompiledKernel resource
+  const char *mangled_name;
+
+  rv = nvrtcGetLoweredName(prog, kernel_name.c_str(), &mangled_name);
+  if (rv != NVRTC_SUCCESS)
+  {
+    return fail_nvrtc(env, rv, "nvrtcGetLoweredName");
+  }
+
+  compiled_kernel->kernel_name = new char[strlen(mangled_name) + 1];
+  strcpy(compiled_kernel->kernel_name, mangled_name);
 
   // Destroy the nvrtc program to free resources (we don't need it anymore since we have the PTX code)
   nvrtcDestroyProgram(&prog);
@@ -716,7 +731,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   CUresult err;
 
   CUmodule module;
-  err = cuModuleLoadDataEx(&module, compiled_kernel->ptx, 0, 0, 0);
+  err = cuModuleLoadDataEx(&module, (void *)compiled_kernel->ptx, 0, 0, 0);
   if (err != CUDA_SUCCESS)
   {
     return fail_cuda(env, err, "cuModuleLoadData jit_launch_nif");

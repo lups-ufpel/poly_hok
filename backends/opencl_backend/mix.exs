@@ -7,8 +7,12 @@ defmodule OpenclBackend.MixProject do
       version: "0.1.1",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      deps: deps(),
+
       compilers: Mix.compilers() ++ [:cmake_compiler],
-      deps: deps()
+      cmake_build_dir: "CMakeBuild",
+      cmake_source_dirs: ["c_src", "CMakeLists.txt"],
+      cmake_targets: ["priv/gpu_nifs.so", "priv/bmp_nifs.so"]
     ]
   end
 

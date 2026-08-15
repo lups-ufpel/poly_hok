@@ -1,6 +1,6 @@
 defmodule OpenclBackend do
   @moduledoc """
-  Implements the `PolyHok.BackendBehaviour` for generating CUDA code from the provided  ASTs.
+  Implements the `PolyHok.BackendBehaviour` for generating OpenCL code from the provided ASTs.
   """
   @behaviour PolyHok.BackendBehaviour
   @on_load :load_nifs
@@ -58,39 +58,16 @@ defmodule OpenclBackend do
     nil
   end
 
-  # def gen_kernel(name, para, body) do
-  #   "__global__\nvoid #{name}(#{para})\n{\n#{body}\n}"
-  # end
-
   @impl PolyHok.BackendBehaviour
   def declare_kernel(name, param_list_str, body) do
     "__kernel void #{name}(#{param_list_str})\n{\n#{body}\n}"
   end
-
-  # def gen_function(name, para, body, type) do
-  #   "__device__\n#{type} #{name}(#{para})\n{\n#{body}\n}"
-  # end
 
   @impl PolyHok.BackendBehaviour
   def declare_function(name, param_list_str, body, return_type) do
     # OpenCL doesn't need a special qualifier for device functions
     "#{return_type} #{name}(#{param_list_str})\n{\n#{body}\n}"
   end
-
-  # def gen_cuda_jit(body, types, param_vars, module, subs) do
-  #   # IO.puts "##########################gen cuda"
-  #   # IO.inspect types
-  #   #  IO.puts "############end gen cuda"
-  #   # raise "hell"
-  #   # IO.puts "gen_cuda"
-  #   # IO.inspect param_vars
-  #   pid = spawn_link(fn -> types_server(param_vars, types, module, subs) end)
-  #   Process.register(pid, :types_server)
-  #   code = gen_body(body)
-  #   send(pid, {:kill})
-  #   Process.unregister(:types_server)
-  #   code
-  # end
 
   @impl PolyHok.BackendBehaviour
   def gen_code(body, types, param_vars, module_name, subs) do

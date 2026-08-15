@@ -715,7 +715,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   err = cuModuleLoadDataEx(&module, compiled_kernel->ptx, 0, 0, 0);
   if (err != CUDA_SUCCESS)
   {
-    return fail_cuda(env, err, "cuModuleLoadData jit compile");
+    return fail_cuda(env, err, "cuModuleLoadData jit_launch_nif");
   }
 
   // Get the kernel function from the module using the kernel name
@@ -723,8 +723,10 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   err = cuModuleGetFunction(&function, module, compiled_kernel->kernel_name.c_str());
   if (err != CUDA_SUCCESS)
   {
+    std::cerr << "[ERROR] Failed to get kernel function '" << compiled_kernel->kernel_name << "' from module." << std::endl;
+
     cuModuleUnload(module);
-    return fail_cuda(env, err, "cuModuleGetFunction jit compile");
+    return fail_cuda(env, err, "cuModuleGetFunction jit_launch_nif");
   }
 
   err = cuLaunchKernel(
@@ -735,7 +737,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   if (err != CUDA_SUCCESS)
   {
     cuModuleUnload(module);
-    return fail_cuda(env, err, "cuLaunchKernel jit compile");
+    return fail_cuda(env, err, "cuLaunchKernel jit_launch_nif");
   }
 
   err = cuCtxSynchronize();

@@ -1,18 +1,53 @@
 defmodule Bmp do
-  @moduledoc """
-  Documentation for `Bmp`.
-  """
+  @on_load :load_nifs
+  def load_nifs do
+    nif_path = Application.app_dir(:bmp, "priv/bmp_nifs") |> to_charlist()
+    ret = :erlang.load_nif(nif_path, 0)
 
-  @doc """
-  Hello world.
+    case ret do
+      :ok ->
+        :ok
 
-  ## Examples
+      {:error, {reason, text}} ->
+        IO.puts("[BMP] Failed to load NIF")
+        IO.puts("[BMP] Reason: #{inspect(reason)}")
+        IO.puts("[BMP] Text: #{text}")
 
-      iex> Bmp.hello()
-      :world
+        :erlang.halt(1)
+    end
+  end
 
-  """
-  def hello do
-    :world
+  def gen_bmp_int(string, dim, %Nx.Tensor{data: data}) do
+    %Nx.BinaryBackend{state: array} = data
+    gen_bmp_int_nif(string, dim, array)
+
+    :ok
+  end
+
+  def gen_bmp_float(string, dim, %Nx.Tensor{data: data}) do
+    %Nx.BinaryBackend{state: array} = data
+    gen_bmp_float_nif(string, dim, array)
+
+    :ok
+  end
+
+  def test_bmp_generation(file_name, dim) do
+    file_name_c = file_name |> to_charlist()
+
+    test_bmp_generation_nif(file_name_c, dim)
+
+    :ok
+  end
+
+  defp gen_bmp_int_nif(_string, _dim, _mat) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  defp gen_bmp_float_nif(_string, _dim, _mat) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  defp test_bmp_generation_nif(_file_name, _dim) do
+    :erlang.nif_error(:nif_not_loaded)
   end
 end

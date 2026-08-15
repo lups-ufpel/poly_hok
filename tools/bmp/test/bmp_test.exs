@@ -1,8 +1,5 @@
-defmodule BmpTest do
-  use ExUnit.Case
-  doctest Bmp
+fname = "teste.bmp"
 
-  test "greets the world" do
-    assert Bmp.hello() == :world
-  end
-end
+Bmp.test_bmp_generation(fname, 512)
+
+IO.puts("BMP generation test completed. Check the generated file: #{fname}")

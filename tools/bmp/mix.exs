@@ -4,10 +4,15 @@ defmodule Bmp.MixProject do
   def project do
     [
       app: :bmp,
-      version: "0.1.0",
-      elixir: "~> 1.19",
+      version: "0.1.1",
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+
+      compilers: Mix.compilers() ++ [:cmake_compiler],
+      cmake_build_dir: "CMakeBuild",
+      cmake_source_dirs: ["c_src", "CMakeLists.txt"],
+      cmake_targets: ["priv/bmp_nifs.so"]
     ]
   end
 
@@ -18,11 +23,10 @@ defmodule Bmp.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:nx, "~> 0.9"},
+      {:cmake_compiler, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "cmake_compiler"}
     ]
   end
 end

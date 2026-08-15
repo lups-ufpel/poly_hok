@@ -1,17 +1,29 @@
 defmodule Mix.Tasks.Compile.CmakeCompiler do
   use Mix.Task.Compiler
 
-  @build_dir "CMakeBuild"
-  @source_dirs ["c_src", "CMakeLists.txt"]
-  @targets ["priv/gpu_nifs.so", "priv/bmp_nifs.so"]
+  # Here we are defining sensible defaults for the build and source directories,
+  # but the user can override them in their Mix project configuration.
+  @default_build_dir "CMakeBuild"
+  @default_source_dirs ["c_src", "CMakeLists.txt"]
 
   @impl Mix.Task.Compiler
   def run(_args) do
-    if stale?() do
-      Mix.shell().info("[OpenCLBackend CMake Compiler] Configuring CMake build...")
+    # Read the Mix project configuration, the user will put the desired values for the
+    # CMake build there
+    config = Mix.Project.config()
 
-      with :ok <- cmake(["-S", ".", "-B", @build_dir]),
-           :ok <- cmake(["--build", @build_dir]) do
+    build_dir = Keyword.get(config, :cmake_build_dir, @default_build_dir)
+    source_dirs = Keyword.get(config, :cmake_source_dirs, @default_source_dirs)
+
+    # At least one target must be specified in the Mix project configuration, otherwise we cannot
+    # determine if the build is stale or not.
+    targets = Keyword.fetch!(config, :cmake_targets)
+
+    if stale?(source_dirs, targets) do
+      Mix.shell().info("[#{app_name(config)} CMake Compiler] Configuring CMake build...")
+
+      with :ok <- cmake(["-S", ".", "-B", build_dir]),
+           :ok <- cmake(["--build", build_dir]) do
         :ok
       else
         {:error, msg} -> Mix.raise(msg)
@@ -23,23 +35,26 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
 
   @impl Mix.Task.Compiler
   def clean do
-    Mix.shell().info("[OpenCLBackend CMake Compiler] Removing build and priv directories...")
-    File.rm_rf(@build_dir)
-    File.rm_rf("priv/")
+    config = Mix.Project.config()
+    build_dir = Keyword.get(config, :cmake_build_dir, @default_build_dir)
+
+    Mix.shell().info("[#{app_name(config)} CMake Compiler] Removing build directories...")
+    File.rm_rf(build_dir)
     :ok
   end
 
-  defp stale?() do
-    target_mtimes = Enum.map(@targets, &mtime/1)
+  defp app_name(config), do: Keyword.fetch!(config, :app)
+
+  defp stale?(source_dirs, targets) do
+    target_mtimes = Enum.map(targets, &mtime/1)
 
     if Enum.any?(target_mtimes, &is_nil/1) do
-      # a target artifact is missing -> definitely need to build
       true
     else
       oldest_target = Enum.min(target_mtimes)
 
       newest_source =
-        @source_dirs |> Enum.flat_map(&source_files/1) |> Enum.map(&mtime/1) |> Enum.max()
+        source_dirs |> Enum.flat_map(&source_files/1) |> Enum.map(&mtime/1) |> Enum.max()
 
       newest_source > oldest_target
     end
@@ -47,11 +62,8 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
 
   defp source_files(path) do
     cond do
-      # If it is a directory, recursively get all files in it
       File.dir?(path) -> Path.wildcard(Path.join(path, "**/*"))
-      # If it is a regular file, return it as a single-element list
       File.regular?(path) -> [path]
-      # Anything else return an empty list
       true -> []
     end
   end

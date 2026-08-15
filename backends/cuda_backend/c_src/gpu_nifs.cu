@@ -1,6 +1,7 @@
 #include <erl_nif.h>
 
 #include <string>
+#include <vector>
 #include <iostream>
 
 #include <cuda.h>
@@ -29,7 +30,7 @@ void compiled_ptx_destructor(ErlNifEnv * /* env */, void *res)
 }
 
 CUcontext context = NULL;
-void init_cuda(ErlNifEnv *env)
+int init_cuda(ErlNifEnv *env)
 {
   if (context == NULL)
   {
@@ -45,14 +46,17 @@ void init_cuda(ErlNifEnv *env)
       cuGetErrorString(err, &error);
 
       std::string message = "Error initializing CUDA context: " + std::string(error);
+      std::cerr << message << std::endl;
 
-      enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+      return -1;
     }
   }
   else
   {
     cuCtxSetCurrent(context);
   }
+
+  return 0;
 }
 
 static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info)
@@ -74,9 +78,7 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info)
       NULL);
 
   // Initialize CUDA context
-  init_cuda(env);
-
-  return 0;
+  return init_cuda(env);
 }
 
 // This function is called when the NIF library is unloaded
@@ -142,7 +144,7 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
   else
   {
     std::string message = "Error get_gpu_array_nif: unknown type: " + std::string(type_name);
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Allocate memory in the host to store the result
@@ -169,7 +171,7 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
         "Error (get_gpu_array_nif): error copying data from device to host: " +
         std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
   //////// END CUDA CALL
 
@@ -234,7 +236,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
   else
   {
     std::string message = "Error (new_gpu_array_from_nx_nif): unknown type: " + std::string(type_name);
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   CUresult err;
@@ -249,7 +251,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
 
     std::string message = "Error (new_gpu_array_from_nx_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Copying data from the host array to the newly allocated GPU array
@@ -261,7 +263,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
 
     std::string message = "Error (new_gpu_array_from_nx_nif:) cuMemcpyHtoD size: " + std::to_string(data_size) + " : " + std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Allocating resource for the GPU array to be returned to Erlang
@@ -327,7 +329,7 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
   else
   {
     std::string message = "Error (new_empty_gpu_array_nif): unknown type: " + std::string(type_name);
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   CUresult err;
@@ -342,7 +344,7 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
 
     std::string message = "Error (new_empty_gpu_array_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   // Allocating resource for the GPU array to be returned to Erlang
@@ -369,7 +371,7 @@ static ERL_NIF_TERM synchronize_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM
 
     std::string message = "Error (synchronize_nif): error synchronizing device: " + std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
   return enif_make_int(env, 0);
@@ -545,7 +547,6 @@ static ERL_NIF_TERM jit_compile_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM
 // 6 - Arguments
 static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-  // Check argc
   if (argc != 6)
   {
     return enif_make_badarg(env);
@@ -603,30 +604,26 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 
   // --- Getting Arguments ---
 
-  CUdeviceptr *arrays = new CUdeviceptr[size_args];
-  float *floats = new float[size_args];
-  int *ints = new int[size_args];
-  double *doubles = new double[size_args];
+  std::vector<CUdeviceptr> arrays;
+  std::vector<float> floats;
+  std::vector<int> ints;
+  std::vector<double> doubles;
 
-  uint arrays_ptr_idx = 0;
-  uint floats_ptr_idx = 0;
-  uint doubles_ptr_idx = 0;
-  uint ints_ptr_idx = 0;
+  // reserve() up front means push_back never reallocates, so pointers we
+  // take into these vectors below stay valid for the rest of the function.
+  arrays.reserve(size_args);
+  floats.reserve(size_args);
+  ints.reserve(size_args);
+  doubles.reserve(size_args);
 
-  void **args = new void *[size_args];
+  std::vector<void *> args(size_args);
 
-  ERL_NIF_TERM list_types;
-  ERL_NIF_TERM head_types;
-  ERL_NIF_TERM tail_types;
+  ERL_NIF_TERM list_types = argv[4];
+  ERL_NIF_TERM list_args = argv[5];
+  ERL_NIF_TERM head_types, tail_types;
+  ERL_NIF_TERM head_args, tail_args;
 
-  ERL_NIF_TERM list_args;
-  ERL_NIF_TERM head_args;
-  ERL_NIF_TERM tail_args;
-
-  list_types = argv[4];
-  list_args = argv[5];
-
-  for (int i = 0; i < size_args; i++)
+  for (size_t i = 0; i < size_args; i++)
   {
     if (!enif_get_list_cell(env, list_types, &head_types, &tail_types))
     {
@@ -640,6 +637,11 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
     if (!enif_get_list_length(env, head_types, &size_type))
     {
       std::cerr << "[ERROR] Failed to get list length for argument type." << std::endl;
+      return enif_make_badarg(env);
+    }
+    if (size_type >= sizeof(type_name))
+    {
+      std::cerr << "[ERROR] Argument type name too long." << std::endl;
       return enif_make_badarg(env);
     }
     enif_get_string(env, head_types, type_name, size_type + 1, ERL_NIF_LATIN1);
@@ -659,9 +661,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
         std::cerr << "[ERROR] Failed to get int argument value." << std::endl;
         return enif_make_badarg(env);
       }
-      ints[ints_ptr_idx] = iarg;
-      args[i] = (void *)&ints[ints_ptr_idx];
-      ints_ptr_idx++;
+      ints.push_back(iarg);
+      args[i] = (void *)&ints.back();
     }
     else if (strcmp(type_name, "float") == 0)
     {
@@ -671,9 +672,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
         std::cerr << "[ERROR] Failed to get float argument value." << std::endl;
         return enif_make_badarg(env);
       }
-      floats[floats_ptr_idx] = static_cast<float>(darg);
-      args[i] = (void *)&floats[floats_ptr_idx];
-      floats_ptr_idx++;
+      floats.push_back(static_cast<float>(darg));
+      args[i] = (void *)&floats.back();
     }
     else if (strcmp(type_name, "double") == 0)
     {
@@ -683,9 +683,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
         std::cerr << "[ERROR] Failed to get double argument value." << std::endl;
         return enif_make_badarg(env);
       }
-      doubles[doubles_ptr_idx] = darg;
-      args[i] = (void *)&doubles[doubles_ptr_idx];
-      doubles_ptr_idx++;
+      doubles.push_back(darg);
+      args[i] = (void *)&doubles.back();
     }
     else if (strcmp(type_name, "tint") == 0 ||
              strcmp(type_name, "tfloat") == 0 ||
@@ -697,9 +696,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
         std::cerr << "[ERROR] Failed to get GPU array resource." << std::endl;
         return enif_make_badarg(env);
       }
-      arrays[arrays_ptr_idx] = *array_res;
-      args[i] = (void *)&arrays[arrays_ptr_idx];
-      arrays_ptr_idx++;
+      arrays.push_back(*array_res);
+      args[i] = (void *)&arrays.back();
     }
     else
     {
@@ -726,6 +724,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   err = cuModuleGetFunction(&function, module, compiled_kernel->kernel_name.c_str());
   if (err != CUDA_SUCCESS)
   {
+    cuModuleUnload(module);
     return fail_cuda(env, err, "cuModuleGetFunction jit compile");
   }
 
@@ -733,9 +732,10 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
       function,
       blocks[0], blocks[1], blocks[2],
       threads[0], threads[1], threads[2],
-      0, 0, args, 0);
+      0, 0, args.data(), 0);
   if (err != CUDA_SUCCESS)
   {
+    cuModuleUnload(module);
     return fail_cuda(env, err, "cuLaunchKernel jit compile");
   }
 
@@ -747,15 +747,11 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 
     std::string message = "Error (jit_launch_nif): error synchronizing device after kernel launch: " + std::string(error);
 
-    enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
+    cuModuleUnload(module);
+    return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
-  // Clean up allocated memory for arguments
-  delete[] arrays;
-  delete[] floats;
-  delete[] ints;
-  delete[] doubles;
-  delete[] args;
+  cuModuleUnload(module);
 
   return enif_make_int(env, 0);
 }

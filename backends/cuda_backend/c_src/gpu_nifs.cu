@@ -38,7 +38,7 @@ int init_cuda(ErlNifEnv *env)
     int device = 0;
     cuInit(0);
 
-    err = cuCtxCreate(&context, NULL, 0, device);
+    err = cuCtxCreate(&context, 0, device);
 
     if (err != CUDA_SUCCESS)
     {

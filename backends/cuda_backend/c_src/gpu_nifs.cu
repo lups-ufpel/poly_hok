@@ -558,6 +558,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
     return enif_make_badarg(env);
   }
 
+  std::cout << "[INFO] Loaded compiled kernel: " << compiled_kernel->kernel_name << std::endl;
+
   // Getting blocks and threads tuples pointers
   const ERL_NIF_TERM *tuple_blocks, *tuple_threads;
   int arity;

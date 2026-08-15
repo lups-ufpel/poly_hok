@@ -12,7 +12,7 @@ defmodule OpenclBackend.MixProject do
       compilers: Mix.compilers() ++ [:cmake_compiler],
       cmake_build_dir: "CMakeBuild",
       cmake_source_dirs: ["c_src", "CMakeLists.txt"],
-      cmake_targets: ["priv/gpu_nifs.so", "priv/bmp_nifs.so"]
+      cmake_targets: ["priv/gpu_nifs.so"]
     ]
   end
 

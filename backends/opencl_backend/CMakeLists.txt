@@ -41,49 +41,30 @@ set(GPU_NIFS_SRC
     c_src/gpu_nifs.cpp
 )
 
-set(BMP_NIFS_SRC
-    c_src/bmp_nifs.cpp
-)
-
-# ---- Creating libraries used by the NIFs and making their headers available ----
-
-add_library(OCL_INTERFACE_LIB STATIC
+set (OCL_INTERFACE_SRC
     c_src/ocl_interface/OCLInterface.cpp
 )
+
+# ---- Creating OCLInterface used by the NIF ----
+
+add_library(OCL_INTERFACE_LIB STATIC ${OCL_INTERFACE_SRC})
 target_include_directories(OCL_INTERFACE_LIB PUBLIC c_src)
 target_link_libraries(OCL_INTERFACE_LIB PUBLIC OpenCL::OpenCL)
 
-add_library(BMP_LIB STATIC
-    c_src/bmp/BMP.cpp
-)
-target_include_directories(BMP_LIB PUBLIC c_src)
-
-# Marking the libraries as POSITION_INDEPENDENT_CODE for shared library compatibility
+# Marking the library as POSITION_INDEPENDENT_CODE for compatibility with the shared NIF
 set_target_properties(OCL_INTERFACE_LIB PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(BMP_LIB PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# ---- Creating the NIF libraries and linking them with the appropriate libraries ----
+# ---- Creating the NIF shared library and linking it with OCLInterface ----
 add_library(gpu_nifs SHARED ${GPU_NIFS_SRC})
 target_link_libraries(gpu_nifs PRIVATE OCL_INTERFACE_LIB)
 target_include_directories(gpu_nifs PRIVATE ${ERLANG_INCLUDE_DIR})
 
-add_library(bmp_nifs SHARED ${BMP_NIFS_SRC})
-target_link_libraries(bmp_nifs PRIVATE BMP_LIB)
-target_include_directories(bmp_nifs PRIVATE ${ERLANG_INCLUDE_DIR})
-
-# Removing the 'lib' prefix from the generated shared libraries
+# Removing the 'lib' prefix from the generated library name
 set_target_properties(gpu_nifs PROPERTIES PREFIX "")
-set_target_properties(bmp_nifs PROPERTIES PREFIX "")
 
-# ---- Copy the generated shared libraries to the 'priv' folder after building ----
+# ---- Copy the generated library to the 'priv' folder after building ----
 add_custom_command(TARGET gpu_nifs POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/priv"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpu_nifs>" "${CMAKE_SOURCE_DIR}/priv/$<TARGET_FILE_NAME:gpu_nifs>"
     COMMENT "Copying gpu_nifs to priv/ directory..."
-)
-
-add_custom_command(TARGET bmp_nifs POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/priv"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bmp_nifs>" "${CMAKE_SOURCE_DIR}/priv/$<TARGET_FILE_NAME:bmp_nifs>"
-    COMMENT "Copying bmp_nifs to priv/ directory..."
 )

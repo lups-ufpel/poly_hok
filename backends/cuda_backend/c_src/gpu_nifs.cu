@@ -9,12 +9,12 @@
 #include <nvrtc.h>
 
 ErlNifResourceType *ARRAY_TYPE;
-ErlNifResourceType *COMPILED_PTX;
+ErlNifResourceType *COMPILED_KERNEL;
 
 typedef struct _compiled_kernel
 {
   char *ptx;
-  std::string kernel_name;
+  char* kernel_name;
 } CompiledKernel;
 
 void dev_array_destructor(ErlNifEnv * /* env */, void *res)
@@ -23,10 +23,11 @@ void dev_array_destructor(ErlNifEnv * /* env */, void *res)
   cuMemFree(*dev_array);
 }
 
-void compiled_ptx_destructor(ErlNifEnv * /* env */, void *res)
+void compiled_kernel_destructor(ErlNifEnv * /* env */, void *res)
 {
   CompiledKernel *compiled_kernel = (CompiledKernel *)res;
   delete[] compiled_kernel->ptx;
+  delete[] compiled_kernel->kernel_name;
 }
 
 CUcontext context = NULL;
@@ -69,11 +70,11 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info)
       ERL_NIF_RT_CREATE,
       NULL);
 
-  COMPILED_PTX = enif_open_resource_type(
+  COMPILED_KERNEL = enif_open_resource_type(
       env,
       NULL,
-      "compiled_ptx",
-      compiled_ptx_destructor,
+      "compiled_kernel",
+      compiled_kernel_destructor,
       ERL_NIF_RT_CREATE,
       NULL);
 
@@ -480,11 +481,14 @@ ERL_NIF_TERM compile_to_ptx(ErlNifEnv *env, std::string &kernel_code, std::strin
   }
 
   // Allocate memory in Erlang for the CompiledKernel resource
-  CompiledKernel *compiled_kernel = (CompiledKernel *)enif_alloc_resource(COMPILED_PTX, sizeof(CompiledKernel));
+  CompiledKernel *compiled_kernel = (CompiledKernel *)enif_alloc_resource(COMPILED_KERNEL, sizeof(CompiledKernel));
 
   // Save the compiled PTX code pointer and kernel name in the CompiledKernel resource
   compiled_kernel->ptx = ptx_code;
-  compiled_kernel->kernel_name = kernel_name;
+
+  // Allocate memory for the kernel name and copy it to the CompiledKernel resource
+  compiled_kernel->kernel_name = new char[kernel_name.size() + 1];
+  strcpy(compiled_kernel->kernel_name, kernel_name.c_str());
 
   // Destroy the nvrtc program to free resources (we don't need it anymore since we have the PTX code)
   nvrtcDestroyProgram(&prog);
@@ -553,7 +557,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 
   // Getting compiled kernel from the first argument (Erlang resource)
   CompiledKernel *compiled_kernel = NULL;
-  if (!enif_get_resource(env, argv[0], COMPILED_PTX, (void **)&compiled_kernel))
+  if (!enif_get_resource(env, argv[0], COMPILED_KERNEL, (void **)&compiled_kernel))
   {
     return enif_make_badarg(env);
   }
@@ -722,7 +726,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 
   // Get the kernel function from the module using the kernel name
   CUfunction function;
-  err = cuModuleGetFunction(&function, module, compiled_kernel->kernel_name.c_str());
+  err = cuModuleGetFunction(&function, module, compiled_kernel->kernel_name);
   if (err != CUDA_SUCCESS)
   {
     std::cerr << "[ERROR] Failed to get kernel function '" << compiled_kernel->kernel_name << "' from module." << std::endl;

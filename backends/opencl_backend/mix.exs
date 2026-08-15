@@ -32,7 +32,7 @@ defmodule OpenclBackend.MixProject do
 
       {:poly_hok, path: "../../poly_hok"}
     else
-      {:poly_hok, git: "https://github.com/lups-ufpel/polyhok.git", sparse: "poly_hok"}
+      {:poly_hok, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "poly_hok"}
     end
   end
 end

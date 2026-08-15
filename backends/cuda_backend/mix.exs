@@ -21,7 +21,7 @@ defmodule CudaBackend.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:poly_hok, git: "https://github.com/lups-ufpel/polyhok.git", sparse: "poly_hok"}
+      {:poly_hok, git: "https://github.com/lups-ufpel/poly_hok.git", sparse: "poly_hok"}
     ]
   end
 end

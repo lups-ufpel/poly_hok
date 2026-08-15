@@ -608,6 +608,11 @@ defmodule PolyHok.TypeInference do
   end
 
   # Sets the type of a list of expressions based on a list of expected types.
+  # Parameters are as follow:
+  # - map: The current types map
+  # - exp_types: A list of expected types for each expression
+  # - args: A list of expressions to set the types for
+  # - newtype: A list of the types that were set for each expression (used to return the new types for the function call)
   defp set_type_args(map, [], [], type), do: {map, type}
 
   defp set_type_args(map, [:none], a1, newtype) when is_tuple(a1) do
@@ -885,6 +890,10 @@ defmodule PolyHok.TypeInference do
           # For special functions, we don't add them to the types map,
           # we just set the type of their arguments based on the expected types for that function.
           {_ret, expected_types_args} = type_fun
+
+          if length(expected_types_args) != length(args) do
+            raise "Special function #{fun} expects #{length(expected_types_args)} arguments, but got #{length(args)}."
+          end
 
           # Set expected types for the arguments of the special function
           {map, _infered_types} = set_type_args(map, expected_types_args, args, [])

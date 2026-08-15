@@ -288,7 +288,6 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
   }
 
   int nrow, ncol;
-  ErlNifBinary host_array_el;
 
   // Get rows and columns
   if (!enif_get_int(env, argv[0], &nrow))

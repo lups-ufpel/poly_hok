@@ -1291,9 +1291,9 @@ defmodule JIT do
         ])
 
       {:include, _, [{_, _, [name]}]} ->
-        # The include directive will read an OpenCL file with the name given in the include directive
+        # The include directive will read a target code file with the name given in the include directive
         # and add it to the module server so that it can be added in the kernel or device function later.
-        code = File.read!("c_src/Elixir.#{name}.cl")
+        code = File.read!("ph_includes/#{name}.c")
         send(:module_server, {:add_include, code})
         process_definitions(module_name, t, l)
 

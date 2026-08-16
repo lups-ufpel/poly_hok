@@ -464,29 +464,30 @@ defmodule PolyHok do
 
   ## Parameters
 
-    - `k`: The kernel function to be compiled and executed.
-    - `t`: The work group size in each dimension (a.k.a number of blocks).
-    - `b`: A list containing the number of work items in each dimension (a.k.a threads per block).
-    - `l`: A list of arguments to be passed to the kernel.
+    - `kernel`: The kernel function to be compiled and executed.
+    - `blocks`: Number of blocks to spawn on each dimension (grid size).
+    - `threads`: Number of threads to spawn per block on each dimension (block size).
+    - `kernel_args`: A list of arguments to be passed to the kernel.
   """
-  def spawn(k, t, b, l) do
+  @spec spawn(any(), tuple(), tuple(), list()) :: :ok
+  def spawn(kernel, blocks, threads, kernel_args) do
     # Get kernel name from the kernel function reference.
-    kernel_name = JIT.get_kernel_name(k)
+    kernel_name = JIT.get_kernel_name(kernel)
 
     # Load, from the module_server, the AST and function graph for the kernel.
     {kast, fun_graph} =
-      case load_ast(k) do
+      case load_ast(kernel) do
         {a, g} -> {a, g}
         nil -> raise "Unknown kernel #{inspect(kernel_name)}"
       end
 
     # Eliminate clojures
-    {kast, l} = JIT.closure_elimination(kast, l)
+    {kast, kernel_args} = JIT.closure_elimination(kast, kernel_args)
 
     # Generates initial delta based on the types of the actual parameters
-    initial_delta = JIT.gen_kernel_initial_delta(kast, l)
+    initial_delta = JIT.gen_kernel_initial_delta(kast, kernel_args)
     # Map of kernel_function_para -> actual_name_in_code
-    subs = JIT.get_function_parameters(kast, l)
+    subs = JIT.get_function_parameters(kast, kernel_args)
 
     kernel_types_and_funs = Map.merge(initial_delta, subs) |> Map.to_list()
     kernel_map_key = {kernel_name, kernel_types_and_funs}
@@ -496,7 +497,7 @@ defmodule PolyHok do
 
     if debug_logs do
       IO.puts("===== [PolyHok] Debug logs for kernel '#{kernel_name}' =====")
-      IO.inspect(l, label: "provided args (l var)")
+      IO.inspect(kernel_args, label: "provided args (kernel_args var)")
       IO.inspect(initial_delta, label: "initial delta")
       IO.inspect(subs, label: "subs")
       IO.inspect(kernel_types_and_funs, label: "kernel_types_and_funs")
@@ -547,7 +548,7 @@ defmodule PolyHok do
           kernel = JIT.compile_kernel(kast, kernel_types_map, subs)
 
           # Get a list of tuples {actual_function_param, type} for all formal parameters that are functions.
-          param_funs = JIT.get_function_parameters_and_their_types(kast, l, kernel_types_map)
+          param_funs = JIT.get_function_parameters_and_their_types(kast, kernel_args, kernel_types_map)
 
           # Creates a list of tuples where each tuple contains a function name and its inferred type signature
           # These functions were not passed as parameters but were called inside the kernel
@@ -579,13 +580,7 @@ defmodule PolyHok do
           # Print generated code for debugging purposes if debug logs are enabled
           if debug_logs do
             IO.puts("===== [PolyHok] Generated code for kernel '#{kernel_name}' =====")
-
-            # We don't print the includes to reduce clutter
-            case comp do
-              [] -> IO.puts(kernel)
-              l -> IO.puts(Enum.reduce(l, "", fn x, y -> y <> x end) <> kernel)
-            end
-
+            IO.puts(prog)
             IO.puts("==============================================================")
           end
 
@@ -615,10 +610,10 @@ defmodule PolyHok do
       end
 
     # 'args' is a list of the actual arguments passed to the kernel, processed to remove any function references
-    args = process_args_no_fun(l)
+    args = process_args_no_fun(kernel_args)
 
     # Now with the kernel reference and the types of the arguments, we can launch the kernel
-    backend().jit_launch_nif(kernel_res, b, t, length(args), types_args, args)
+    backend().jit_launch_nif(kernel_res, blocks, threads, length(args), types_args, args)
 
     :ok
   end

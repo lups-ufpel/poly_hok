@@ -1,6 +1,0 @@
-%{
-  "cmake_compiler": {:git, "https://github.com/lups-ufpel/poly_hok.git", "44f11156b368de77c4446f30172ed8affc0fe6f0", [sparse: "cmake_compiler"]},
-  "complex": {:hex, :complex, "0.7.0", "695632ef9487517aa5d57edd1697801079d622414cb2e1a7cf538b1f9a50f205", [:mix], [], "hexpm", "0ee39c0803129f546e7f3f640da8f021c9e659402bf59da6f7f2c4848f068f8d"},
-  "nx": {:hex, :nx, "0.13.1", "f96311a573dcd57d11ff889958ee518f52f7c16dbf6d22191020d322887856fc", [:mix], [{:complex, "~> 0.7", [hex: :complex, repo: "hexpm", optional: false]}, {:telemetry, "~> 0.4.0 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "20556ea36c1e9732c1d87eebbf7c0773517e876e92af4ff592b974f80db0b9d9"},
-  "telemetry": {:hex, :telemetry, "1.4.2", "a0cb522801dffb1c49fe6e30561badffc7b6d0e180db1300df759faa22062855", [:rebar3], [], "hexpm", "928f6495066506077862c0d1646609eed891a4326bee3126ba54b60af61febb1"},
-}

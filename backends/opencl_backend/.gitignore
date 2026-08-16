@@ -11,3 +11,5 @@ erl_crash.dump
 
 CMakeBuild/
 priv/
+
+mix.lock

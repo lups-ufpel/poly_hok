@@ -17,16 +17,20 @@ defmodule Bmp do
     end
   end
 
-  def gen_bmp_int(string, dim, %Nx.Tensor{data: data}) do
+  def gen_bmp_int(file_name, dim, %Nx.Tensor{data: data}) do
     %Nx.BinaryBackend{state: array} = data
-    gen_bmp_int_nif(string, dim, array)
+
+    file_name_c = file_name |> to_charlist()
+    gen_bmp_int_nif(file_name_c, dim, array)
 
     :ok
   end
 
-  def gen_bmp_float(string, dim, %Nx.Tensor{data: data}) do
+  def gen_bmp_float(file_name, dim, %Nx.Tensor{data: data}) do
     %Nx.BinaryBackend{state: array} = data
-    gen_bmp_float_nif(string, dim, array)
+
+    file_name_c = file_name |> to_charlist()
+    gen_bmp_float_nif(file_name_c, dim, array)
 
     :ok
   end
@@ -39,11 +43,11 @@ defmodule Bmp do
     :ok
   end
 
-  defp gen_bmp_int_nif(_string, _dim, _mat) do
+  defp gen_bmp_int_nif(_file_name, _dim, _mat) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  defp gen_bmp_float_nif(_string, _dim, _mat) do
+  defp gen_bmp_float_nif(_file_name, _dim, _mat) do
     :erlang.nif_error(:nif_not_loaded)
   end
 

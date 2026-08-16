@@ -22,7 +22,7 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
     if stale?(source_dirs, targets) do
       Mix.shell().info("[#{app_name(config)} CMake Compiler] Configuring CMake build...")
 
-      with :ok <- cmake(["-S", ".", "-B", build_dir]),
+      with :ok <- cmake(["-S", ".", "-B", build_dir, "-DCOMPILED_APP_ROOT=#{Mix.Project.app_path()}"]),
            :ok <- cmake(["--build", build_dir]) do
         :ok
       else

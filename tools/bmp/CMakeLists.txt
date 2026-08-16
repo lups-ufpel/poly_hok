@@ -56,9 +56,15 @@ target_include_directories(bmp_nifs PRIVATE ${ERLANG_INCLUDE_DIR})
 # Removing the 'lib' prefix from the generated shared library
 set_target_properties(bmp_nifs PROPERTIES PREFIX "")
 
-# ---- Copy the generated shared library to the 'priv' folder after building ----
+# ---- Copy the generated shared library to the 'priv' folder after building ---
+if(DEFINED COMPILED_APP_ROOT)
+    set(PRIV_DIR "${COMPILED_APP_ROOT}/priv")
+else()
+    set(PRIV_DIR "${CMAKE_SOURCE_DIR}/priv")
+endif()
+
 add_custom_command(TARGET bmp_nifs POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/priv"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bmp_nifs>" "${CMAKE_SOURCE_DIR}/priv/$<TARGET_FILE_NAME:bmp_nifs>"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bmp_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:bmp_nifs>"
     COMMENT "Copying bmp_nifs to priv/ directory..."
 )

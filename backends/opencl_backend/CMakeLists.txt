@@ -63,8 +63,14 @@ target_include_directories(gpu_nifs PRIVATE ${ERLANG_INCLUDE_DIR})
 set_target_properties(gpu_nifs PROPERTIES PREFIX "")
 
 # ---- Copy the generated library to the 'priv' folder after building ----
+if(DEFINED COMPILED_APP_ROOT)
+    set(PRIV_DIR "${COMPILED_APP_ROOT}/priv")
+else()
+    set(PRIV_DIR "${CMAKE_SOURCE_DIR}/priv")
+endif()
+
 add_custom_command(TARGET gpu_nifs POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/priv"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpu_nifs>" "${CMAKE_SOURCE_DIR}/priv/$<TARGET_FILE_NAME:gpu_nifs>"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpu_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:gpu_nifs>"
     COMMENT "Copying gpu_nifs to priv/ directory..."
 )

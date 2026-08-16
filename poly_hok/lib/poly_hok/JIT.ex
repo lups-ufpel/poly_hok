@@ -1275,6 +1275,9 @@ defmodule JIT do
         # Get function name from header
         {fname, _, _para} = header
 
+        # IO.puts("Processing device function: #{fname}")
+        # IO.inspect(body, label: "Original body")
+
         # Travels the function body and adds a return statement if the function returns an expression
         body = PolyHok.TypeInference.add_return(body)
 

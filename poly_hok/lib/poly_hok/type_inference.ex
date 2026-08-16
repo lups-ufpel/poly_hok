@@ -51,7 +51,10 @@ defmodule PolyHok.TypeInference do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
       IO.puts("[TypeInference] Target function/kernel: #{inspect(f_name)}")
       IO.inspect(map, label: "[TypeInference] Provided initial delta map")
-      IO.inspect(type_server_key, label: "[TypeInference] Type server key for this function/kernel")
+
+      IO.inspect(type_server_key,
+        label: "[TypeInference] Type server key for this function/kernel"
+      )
     end
 
     # Check if the type server already contains a map for this function with this initial delta map. If it does, then it means
@@ -88,6 +91,7 @@ defmodule PolyHok.TypeInference do
               IO.puts(
                 "[TypeInference] Retrieved types map from type server is different from the provided map. Merging them to use the most updated info."
               )
+
               IO.inspect(merged_map, label: "[TypeInference] Merged types map")
             end
 
@@ -181,10 +185,10 @@ defmodule PolyHok.TypeInference do
   def add_return(body) do
     case body do
       {:do, {:__block__, pos, code}} ->
-        {:do, {:__block__, pos, check_return(code)}}
+        {:do, {:__block__, pos, check_return_commands(code)}}
 
       {:__block__, pos, code} ->
-        {:__block__, pos, check_return(code)}
+        {:__block__, pos, check_return_commands(code)}
 
       {:do, exp} ->
         case exp do
@@ -195,7 +199,7 @@ defmodule PolyHok.TypeInference do
             if is_exp?(exp) do
               {:do, {:return, [], [exp]}}
             else
-              {:do, check_return(exp)}
+              {:do, check_return_last(exp)}
             end
         end
 
@@ -210,7 +214,7 @@ defmodule PolyHok.TypeInference do
 
   # When we have a list of commands we need to check only the last one,
   # because only the last command can be a return statement.
-  defp check_return(coms) when is_list(coms) do
+  defp check_return_commands(coms) when is_list(coms) do
     # IO.puts("Multiple commands")
 
     list_len = length(coms)
@@ -220,12 +224,12 @@ defmodule PolyHok.TypeInference do
       if idx == list_len do
         check_return_last(com)
       else
-        check_return(com)
+        check_return_command(com)
       end
     end)
   end
 
-  defp check_return(com) do
+  defp check_return_command(com) do
     # IO.puts("Single command - but not last")
     # IO.inspect(com, label: "Command to check")
 
@@ -233,11 +237,35 @@ defmodule PolyHok.TypeInference do
       {:return, _, _} ->
         com
 
-      {:if, info, [exp, [do: block]]} ->
-        {:if, info, [exp, [do: check_return(block)]]}
+      {:if, info, [exp, [do: do_body]]} ->
+        case do_body do
+          {:__block__, bl_pos, bl_code} ->
+            {:if, info, [exp, [do: {:__block__, bl_pos, check_return_commands(bl_code)}]]}
 
-      {:if, info, [exp, [do: block, else: belse]]} ->
-        {:if, info, [exp, [do: check_return(block), else: check_return(belse)]]}
+          do_exp ->
+            {:if, info, [exp, [do: check_return_command(do_exp)]]}
+        end
+
+      {:if, info, [exp, [do: do_body, else: else_body]]} ->
+        processed_do =
+          case do_body do
+            {:__block__, bl_pos, bl_code} ->
+              {:__block__, bl_pos, check_return_commands(bl_code)}
+
+            do_exp ->
+              check_return_command(do_exp)
+          end
+
+        processed_else =
+          case else_body do
+            {:__block__, bl_pos, bl_code} ->
+              {:__block__, bl_pos, check_return_commands(bl_code)}
+
+            else_exp ->
+              check_return_command(else_exp)
+          end
+
+        {:if, info, [exp, [do: processed_do, else: processed_else]]}
 
       _ ->
         com
@@ -252,11 +280,35 @@ defmodule PolyHok.TypeInference do
       {:return, _, _} ->
         com
 
-      {:if, info, [exp, [do: block]]} ->
-        {:if, info, [exp, [do: check_return(block)]]}
+      {:if, info, [exp, [do: do_body]]} ->
+        case do_body do
+          {:__block__, bl_pos, bl_code} ->
+            {:if, info, [exp, [do: {:__block__, bl_pos, check_return_commands(bl_code)}]]}
 
-      {:if, info, [exp, [do: block, else: belse]]} ->
-        {:if, info, [exp, [do: check_return(block), else: check_return(belse)]]}
+          do_exp ->
+            {:if, info, [exp, [do: check_return_last(do_exp)]]}
+        end
+
+      {:if, info, [exp, [do: do_body, else: else_body]]} ->
+        processed_do =
+          case do_body do
+            {:__block__, bl_pos, bl_code} ->
+              {:__block__, bl_pos, check_return_commands(bl_code)}
+
+            do_exp ->
+              check_return_last(do_exp)
+          end
+
+        processed_else =
+          case else_body do
+            {:__block__, bl_pos, bl_code} ->
+              {:__block__, bl_pos, check_return_commands(bl_code)}
+
+            else_exp ->
+              check_return_last(else_exp)
+          end
+
+        {:if, info, [exp, [do: processed_do, else: processed_else]]}
 
       _ ->
         if is_exp?(com) do
@@ -371,7 +423,8 @@ defmodule PolyHok.TypeInference do
         |> Map.put(array, :none)
         |> set_type_exp(:int, arg2)
 
-      {shared_atom, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} when shared_atom in [:__shared__, :__local] ->
+      {shared_atom, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]}
+      when shared_atom in [:__shared__, :__local] ->
         array = get_var(arg1)
 
         map
@@ -958,14 +1011,35 @@ defmodule PolyHok.TypeInference do
     end
   end
 
-   # Tries to infer the type of a function call.
+  # Tries to infer the type of a function call.
   # If the type is unknow, it infers the type of the arguments and adds the function to the map with return type :none
   # and the inferred argument types.
   # E.g: fun: {:none, [:int, :float]}
   defp infer_type_fun(map, exp) do
     case exp do
       # Check if the expression is an operation, if it is, we simply return the map unchanged
-      {op, _, _args} when op in [:+, :-, :/, :*, :<=, :<, :>, :>=, :!=, :==, :!, :&&, :||, :>>>, :<<<, :~>>, :&&&, :|||, :+++] ->
+      {op, _, _args}
+      when op in [
+             :+,
+             :-,
+             :/,
+             :*,
+             :<=,
+             :<,
+             :>,
+             :>=,
+             :!=,
+             :==,
+             :!,
+             :&&,
+             :||,
+             :>>>,
+             :<<<,
+             :~>>,
+             :&&&,
+             :|||,
+             :+++
+           ] ->
         map
 
       {fun, _, args} when is_list(args) ->

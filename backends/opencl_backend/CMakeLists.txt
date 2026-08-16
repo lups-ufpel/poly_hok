@@ -72,5 +72,5 @@ endif()
 add_custom_command(TARGET gpu_nifs POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpu_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:gpu_nifs>"
-    COMMENT "Copying gpu_nifs to priv/ directory..."
+    COMMENT "Copying gpu_nifs to priv/ directory on '${PRIV_DIR}'..."
 )

@@ -51,6 +51,18 @@ To use PolyHok in an Elixir project, you need to do three things:
     config :poly_hok, backend: OpenclBackend
     ```
 
+## Repository Structure
+
+The PolyHok repository is structured as a _poncho_ project, which is a monorepo that contains multiple Elixir applications. The PolyHok "core" is located in the `poly_hok/` directory, while the backends are located in the `backends/` directory. Each backend is an independent Elixir application that is intended to be used alongside the PolyHok application.
+
+Below we list all the applications in the PolyHok repository:
+
+- `poly_hok/`: The core PolyHok application. Responsible for providing the PolyHok macros and functions for GNx creation, kernel spawning, type inferencem, and defines the BackendBehavior that all backends must implement.
+- `backends/opencl_backend/`: The OpenCL backend for PolyHok.
+- `backends/cuda_backend/`: The CUDA backend for PolyHok.
+- `cmake_compiler/`: An Elixir compiler task used by the backends and Bmp module to compile their C++/CUDA code using CMake. The end user does not need to include this dependency to be able to use PolyHok, as it is already included in the backends and Bmp module.
+- `tools/bmp/`: The Bmp module is a library that provides a simple interface for writing BMP images. It is used by some PolyHok examples in the [PolyHok Benchmarks](https://github.com/lups-ufpel/poly_hok_benchmarks). The end user can include this dependency in their project if they wish to use it, but it is not required for PolyHok to work.
+
 ## License
 
 PolyHok is licensed under the [MIT License](LICENSE).

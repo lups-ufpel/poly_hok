@@ -18,13 +18,13 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
     # At least one target must be specified in the Mix project configuration, otherwise we cannot
     # determine if the build is stale or not.
     targets = Keyword.fetch!(config, :cmake_targets)
+    compiled_app_root = Mix.Project.app_path()
 
-    if stale?(source_dirs, targets) do
-      Mix.shell().info("[#{app_name(config)} CMake Compiler] Configuring CMake build...")
+    targets_full_paths = Enum.map(targets, fn target -> Path.join(compiled_app_root, target) end)
 
-      compiled_app_root = Mix.Project.app_path()
-
-      Mix.shell().info("[#{app_name(config)} CMake Compiler] Compiled app root: #{compiled_app_root}")
+    if stale?(source_dirs, targets_full_paths) do
+      Mix.shell().info("[CMake Compiler] Configuring CMake build for '#{app_name(config)}'...")
+      Mix.shell().info("[CMake Compiler] Compiled app root for '#{app_name(config)}': #{compiled_app_root}")
 
       with :ok <- cmake(["-S", ".", "-B", build_dir, "-DCOMPILED_APP_ROOT=#{compiled_app_root}"]),
            :ok <- cmake(["--build", build_dir]) do

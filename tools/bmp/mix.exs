@@ -9,7 +9,7 @@ defmodule Bmp.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
 
-      compilers: Mix.compilers() ++ [:cmake_compiler],
+      compilers: [:cmake_compiler] ++ Mix.compilers(),
       cmake_build_dir: "CMakeBuild",
       cmake_source_dirs: ["c_src", "CMakeLists.txt"],
       cmake_targets: ["priv/bmp_nifs.so"]

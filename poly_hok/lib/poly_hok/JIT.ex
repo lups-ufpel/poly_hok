@@ -1180,7 +1180,6 @@ defmodule JIT do
     - `body`: The body or content associated with the module.
   """
   def process_module(module_name, body) do
-    IO.puts("Processing module #{module_name}...")
     # initiate server that collects types and asts
     if Process.whereis(:module_server) == nil do
       pid = spawn_link(fn -> module_server(%{}, %{}, %{}) end)

@@ -65,6 +65,6 @@ endif()
 
 add_custom_command(TARGET bmp_nifs POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:bmp_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:bmp_nifs>"
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:bmp_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:bmp_nifs>"
     COMMENT "Copying bmp_nifs to priv/ directory on '${PRIV_DIR}'..."
 )

@@ -581,11 +581,11 @@ defmodule PolyHok.TypeInference do
         |> Map.put(var, type)
 
       {:return, _, nil} ->
-        map
+        Map.put(map, :return, :unit)
 
       {:return, _, [arg]} ->
         case map[:return] do
-          :none ->
+          t when t in [nil, :none] ->
             inf_type = find_type_exp(map, arg)
 
             case inf_type do
@@ -597,9 +597,6 @@ defmodule PolyHok.TypeInference do
                 map = Map.put(map, :return, found_type)
                 map
             end
-
-          nil ->
-            raise "Function must have a return."
 
           found_type ->
             set_type_exp(map, found_type, arg)

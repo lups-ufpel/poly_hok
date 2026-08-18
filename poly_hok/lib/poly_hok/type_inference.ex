@@ -1110,7 +1110,7 @@ defmodule PolyHok.TypeInference do
           :tfloat ->
             :float
 
-          nil ->
+          t when t in [nil, :none] ->
             :none
 
           ttt ->
@@ -1150,7 +1150,7 @@ defmodule PolyHok.TypeInference do
                   :double ->
                     :double
 
-                  :none ->
+                  t when t in [nil, :none] ->
                     :none
 
                   _ ->

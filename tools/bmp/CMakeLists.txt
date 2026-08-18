@@ -63,8 +63,9 @@ else()
     set(PRIV_DIR "${CMAKE_SOURCE_DIR}/priv")
 endif()
 
-add_custom_command(TARGET bmp_nifs POST_BUILD
+add_custom_target(copy_bmp_nifs_to_priv ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:bmp_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:bmp_nifs>"
+    DEPENDS bmp_nifs
     COMMENT "Copying bmp_nifs to priv/ directory on '${PRIV_DIR}'..."
 )

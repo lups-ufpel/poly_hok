@@ -69,8 +69,9 @@ else()
     set(PRIV_DIR "${CMAKE_SOURCE_DIR}/priv")
 endif()
 
-add_custom_command(TARGET gpu_nifs POST_BUILD
+add_custom_target(copy_gpu_nifs_to_priv ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PRIV_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:gpu_nifs>" "${PRIV_DIR}/$<TARGET_FILE_NAME:gpu_nifs>"
+    DEPENDS gpu_nifs
     COMMENT "Copying gpu_nifs to priv/ directory on '${PRIV_DIR}'..."
 )

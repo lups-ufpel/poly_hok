@@ -23,8 +23,8 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
     targets_full_paths = Enum.map(targets, fn target -> Path.join(compiled_app_root, target <> dylib_extension()) end)
 
     if stale?(source_dirs, targets_full_paths) do
-      Mix.shell().info("[CMake Compiler] Configuring CMake build for '#{app_name(config)}'...")
-      Mix.shell().info("[CMake Compiler] Compiled app root for '#{app_name(config)}': #{compiled_app_root}")
+      Mix.shell().info("[CMake Compiler] Building '#{app_name(config)}'...")
+      Mix.shell().info("[CMake Compiler] App root for '#{app_name(config)}': #{compiled_app_root}")
 
       with :ok <- cmake(["-S", ".", "-B", build_dir, "-DCOMPILED_APP_ROOT=#{compiled_app_root}"]),
            :ok <- cmake(["--build", build_dir]) do

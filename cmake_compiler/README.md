@@ -24,7 +24,7 @@ def project do
     compilers: Mix.compilers() ++ [:cmake_compiler],
     cmake_build_dir: "CMakeBuild",
     cmake_source_dirs: ["c_src", "CMakeLists.txt"],
-    cmake_targets: ["my_target.so"]
+    cmake_targets: ["my_target"]
   ]
 end
 ```
@@ -41,7 +41,7 @@ The configuration options are:
 
 - `cmake_source_dirs` (_optional_): A list of directories and/or files that will be checked for staleness. If any of these files are newer than the last build, CMake will be invoked. Defaults to `["c_src", "CMakeLists.txt"]`. Must be relative paths to the project root.
 
-- `cmake_targets` (**mandatory**): A list of targets that CMake will build. These targets will also be checked for staleness, so if any of them are missing or older than the source files, CMake will be invoked. Must be relative paths to the project root.
+- `cmake_targets` (**mandatory**): A list of targets that CMake will build. These targets will also be checked for staleness, so if any of them are missing or older than the source files, CMake will be invoked. Must be relative paths to the project root. Currently, all targets must be a dynamic library (`.so` on Linux, `.dylib` on macOS, `.dll` on Windows). **Don't add the extension to the target names!** The CmakeCompiler will automatically figure out the correct extension for your platform.
 
 ## Requirements
 

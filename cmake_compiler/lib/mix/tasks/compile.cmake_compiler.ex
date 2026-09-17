@@ -18,9 +18,9 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
     # At least one target must be specified in the Mix project configuration, otherwise we cannot
     # determine if the build is stale or not.
     targets = Keyword.fetch!(config, :cmake_targets)
-    compiled_app_root = Mix.Project.app_path()
 
-    targets_full_paths = Enum.map(targets, fn target -> Path.join(compiled_app_root, target) end)
+    compiled_app_root = Mix.Project.app_path()
+    targets_full_paths = Enum.map(targets, fn target -> Path.join(compiled_app_root, target <> dylib_extension()) end)
 
     if stale?(source_dirs, targets_full_paths) do
       Mix.shell().info("[CMake Compiler] Configuring CMake build for '#{app_name(config)}'...")
@@ -45,6 +45,14 @@ defmodule Mix.Tasks.Compile.CmakeCompiler do
     Mix.shell().info("[#{app_name(config)} CMake Compiler] Removing build directories...")
     File.rm_rf(build_dir)
     :ok
+  end
+
+  defp dylib_extension() do
+    case :os.type() do
+      {:win32, _} -> ".dll"
+      {:unix, :darwin} -> ".dylib"
+      {:unix, _} -> ".so"
+    end
   end
 
   defp app_name(config), do: Keyword.fetch!(config, :app)

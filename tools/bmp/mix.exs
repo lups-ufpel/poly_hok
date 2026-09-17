@@ -12,7 +12,7 @@ defmodule Bmp.MixProject do
       compilers: [:cmake_compiler] ++ Mix.compilers(),
       cmake_build_dir: "CMakeBuild",
       cmake_source_dirs: ["c_src", "CMakeLists.txt"],
-      cmake_targets: ["priv/bmp_nifs.so"]
+      cmake_targets: ["priv/bmp_nifs"]
     ]
   end
 

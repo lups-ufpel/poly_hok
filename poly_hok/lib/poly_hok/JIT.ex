@@ -16,7 +16,7 @@ defmodule JIT do
   def gen_new_module(header, body) do
     new_body =
       case body do
-        {:__block__, [], definitions} -> gen_new_definitions(definitions)
+        {:__block__, _, definitions} -> gen_new_definitions(definitions)
         _ -> gen_new_definitions([body])
       end
 
@@ -1190,7 +1190,7 @@ defmodule JIT do
     # Usually, if the body is not a block, it will be a single definition of function or kernel.
     _defs =
       case body do
-        {:__block__, [], definitions} -> process_definitions(module_name, definitions, [])
+        {:__block__, _, definitions} -> process_definitions(module_name, definitions, [])
         _ -> process_definitions(module_name, [body], [])
       end
   end

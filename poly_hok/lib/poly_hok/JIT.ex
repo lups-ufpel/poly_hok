@@ -804,12 +804,21 @@ defmodule JIT do
     Map.put(delta, :return, return_type)
   end
 
+  defp get_formal_para({_, _, formal_para}) do
+    get_formal_para(formal_para)
+  end
+
+  defp get_formal_para(formal_para) when is_list(formal_para) do
+    formal_para |> Enum.map(fn {fp, _, _} -> fp end)
+  end
+
   @doc """
   Infers the types of variables in the function's AST based on the provided delta mapping.
 
   ## Parameters
     - `code`: The abstract syntax tree (AST) of the function.
     - `delta`: A map where keys are variable names and values are their corresponding types.
+    - `name`: An atom containing the name of the kernel/function
 
   ## Returns
     - A tuple containing:
@@ -817,16 +826,16 @@ defmodule JIT do
       - A map where keys are variable names and values are their inferred types.
       - An optional reason for the error if the inference failed.
   """
-  def infer_types({:defk, _, [_header, [body]]}, delta, kernel_name) do
-    PolyHok.TypeInference.type_check(delta, body, kernel_name)
+  def infer_types({:defk, _, [header, [body]]}, delta, kernel_name) do
+    PolyHok.TypeInference.type_check(delta, body, kernel_name, get_formal_para(header))
   end
 
-  def infer_types({:defd, _, [_header, [body]]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name)
+  def infer_types({:defd, _, [header, [body]]}, delta, fun_name) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(header))
   end
 
-  def infer_types({:fn, _, [{:->, _, [_para, body]}]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name)
+  def infer_types({:fn, _, [{:->, _, [para, body]}]}, delta, fun_name) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(para))
   end
 
   @doc """

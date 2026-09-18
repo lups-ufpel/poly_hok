@@ -31,12 +31,13 @@ defmodule PolyHok.TypeInference do
     - map: A map containing initial type information for variables and functions.
     - body: The AST body to perform type inference on.
     - f_name: The name of the function being processed, used for storing and retrieving types from the type server.
+    - formal_para: A list containing the formal parameters names of the kernel/function as atoms
 
     ## Returns
     - A tuple containing a status atom and the final type map after inference. Ex: {:ok, final_map} or {:error, final_map, reason}
 
   """
-  def type_check(map, body, f_name) do
+  def type_check(map, body, f_name, formal_para) do
     if Process.whereis(:type_server) == nil do
       ts_pid = spawn_link(fn -> type_server(Map.new()) end)
       Process.register(ts_pid, :type_server)
@@ -44,21 +45,29 @@ defmodule PolyHok.TypeInference do
 
     logs_en = is_debug_logs_enabled?()
 
-    # The type server keys are in the format {function_name, initial_delta_map_as_list}
-    type_server_key = {f_name, Map.to_list(map)}
+    # Map formal parameters with their infered types from delta map
+    formal_para_with_types =
+      formal_para
+      |> Enum.map(fn fp -> {fp, Map.get(map, fp, :none)} end)
+
+    # The type server key is the function_name as an atom
+    type_server_key = f_name
 
     if logs_en do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
-      IO.puts("[TypeInference] Target function/kernel: #{inspect(f_name)}")
+      IO.puts("[TypeInference] Target function/kernel name: #{inspect(f_name)}")
       IO.inspect(map, label: "[TypeInference] Provided initial delta map")
+      IO.inspect(formal_para, label: "[TypeInference] Formal parameters list")
+      IO.inspect(formal_para_with_types, label: "[TypeInference] Formal parameters with types list")
 
       IO.inspect(type_server_key,
-        label: "[TypeInference] Type server key for this function/kernel"
+        label: "[TypeInference] * Type server key for this function/kernel"
       )
     end
 
-    # Check if the type server already contains a map for this function with this initial delta map. If it does, then it means
-    # this function was processed before, so it may contain some already inferred types that we can use for a faster inference!
+    # Check if the type server already contains a map for this function.
+    # If it does, then it means this function was processed before, so it may contain some already inferred types that we
+    # can use for a faster inference!
     # I discovered (in the bad way) that we can't reuse an already inferred type map from a previous iteration if the initial
     # delta map is different, because the initial delta map may contain new information that can change the inference results.
     send(:type_server, {:get_types, type_server_key, self()})
@@ -125,7 +134,7 @@ defmodule PolyHok.TypeInference do
          "Could not infer types for the following variables: #{inspect(notinfer2)}"}
       else
         # If something did change, we go for another round
-        type_check(types2, body, f_name)
+        type_check(types2, body, f_name, formal_para)
       end
     else
       {:ok, types}

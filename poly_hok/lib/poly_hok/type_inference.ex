@@ -55,7 +55,7 @@ defmodule PolyHok.TypeInference do
     - A tuple containing a status atom and the final type map after inference. Ex: {:ok, final_map} or {:error, final_map, reason}
 
   """
-  def type_check(map, body, f_name, formal_para, fun_graph) do
+  def type_check(map, body, f_name, formal_para) do
     if Process.whereis(:type_server) == nil do
       ts_pid = spawn_link(fn -> type_server(Map.new()) end)
       Process.register(ts_pid, :type_server)
@@ -75,7 +75,6 @@ defmodule PolyHok.TypeInference do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
       IO.puts("[TypeInference] Target function/kernel name: #{inspect(f_name)}")
       IO.inspect(map, label: "[TypeInference] Provided initial delta map")
-      IO.inspect(fun_graph, label: "[TypeInference] Fun graph")
       IO.inspect(formal_para_with_types, label: "[TypeInference] Formal parameters with types list")
 
       IO.inspect(type_server_key,
@@ -156,7 +155,7 @@ defmodule PolyHok.TypeInference do
          "Could not infer types for the following variables: #{inspect(notinfer2)}"}
       else
         # If something did change, we go for another round
-        type_check(types2, body, f_name, formal_para, fun_graph)
+        type_check(types2, body, f_name, formal_para)
       end
     else
       {:ok, types}

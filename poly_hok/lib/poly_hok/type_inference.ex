@@ -7,22 +7,6 @@ defmodule PolyHok.TypeInference do
     Agent.get(:type_inference_debug_logs_agent, fn value -> value end)
   end
 
-  defp type_server(global_map) do
-    receive do
-      {:update_types, key, data = {_new_types, _formal_para_with_types}} ->
-        global_map = Map.put(global_map, key, data)
-        type_server(global_map)
-
-      {:get_types, key, caller_pid} ->
-        send(caller_pid, {:types_response, Map.get(global_map, key)})
-        type_server(global_map)
-
-      msg ->
-        IO.inspect(msg, label: "[Type Server] Received unknown message")
-        type_server(global_map)
-    end
-  end
-
   @doc """
     Performs type checking and inference on the given AST body using the provided initial type map.
     It recursively infers types until no more types can be inferred.
@@ -30,7 +14,7 @@ defmodule PolyHok.TypeInference do
     ## Parameters
     - map: A map containing initial type information for variables and functions.
     - body: The AST body to perform type inference on.
-    - f_name: The name of the function being processed, used for storing and retrieving types from the type server.
+    - f_name: The name of the function being processed.
 
     ## Returns
     - A tuple containing a status atom and the final type map after inference. Ex: {:ok, final_map} or {:error, final_map, reason}

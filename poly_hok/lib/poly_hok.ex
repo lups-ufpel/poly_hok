@@ -561,9 +561,6 @@ defmodule PolyHok do
 
           all_funs = other_funs ++ param_funs
 
-          IO.puts("[DEBUG] Kernel string code generated. We will now generate the device functions code")
-          IO.inspect(all_funs, label: "[DEBUG] Functions to generate code")
-
           {funs_code, _compiled_map, _updated_delta} = JIT.compile_list_of_functions(all_funs, MapSet.new(), kernel_types_map)
 
           includes = JIT.get_includes()

@@ -17,8 +17,8 @@ defmodule PolyHok.TypeInference do
         send(caller_pid, {:types_response, Map.get(global_map, key)})
         type_server(global_map)
 
-      _ ->
-        IO.puts("Type server received unknown message")
+      msg ->
+        IO.inspect(msg, label: "[Type Server] Received unknown message")
         type_server(global_map)
     end
   end
@@ -145,7 +145,7 @@ defmodule PolyHok.TypeInference do
       notinfer2 = not_infered(Map.to_list(types2))
 
       # Save the latest inferred types in the type server
-      send(:type_server, {:update_types, type_server_key, types2})
+      send(:type_server, {:update_types, type_server_key, {types2, formal_para_with_types}})
 
       # Check if something changed
       if length(notinfer) == length(notinfer2) do

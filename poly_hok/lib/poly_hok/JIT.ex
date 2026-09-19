@@ -132,13 +132,14 @@ defmodule JIT do
   def compile_list_of_functions(fun_list, compiled_funs_set, initial_delta) do
     keep_only_functions = fn m ->
       m
-      |> Map.values()
+      |> Map.to_list()
       |> Enum.filter(fn v ->
         case v do
-          {t, lst} when is_atom(t) and is_list(lst) -> true
+          {_key, {t, lst}} when is_atom(t) and is_list(lst) -> true
           _ -> false
         end
       end)
+      |> Map.new()
     end
 
     Enum.reduce(

@@ -525,7 +525,7 @@ defmodule PolyHok do
 
           # Infers the types of the kernel's variables using the new ker_inn_funs_delta map
           kernel_types_map =
-            case JIT.infer_types(kast, ker_inn_funs_delta, kernel_name) do
+            case JIT.infer_types(kast, ker_inn_funs_delta, kernel_name, fun_graph) do
               {:ok, types} -> types
               {:error, _types, reason} -> raise "Type inference failed: #{reason}"
             end

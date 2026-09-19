@@ -23,6 +23,8 @@ defmodule PolyHok.TypeInference do
     end
   end
 
+  # To keep the TS map, the initial types must all match and the TS map must contain
+  # at least the same amount of information than the provided map
   defp keep_ts_map?(ts_fp_types, fp_types) do
     Enum.zip(ts_fp_types, fp_types)
     |> Enum.reduce(true,
@@ -53,7 +55,7 @@ defmodule PolyHok.TypeInference do
     - A tuple containing a status atom and the final type map after inference. Ex: {:ok, final_map} or {:error, final_map, reason}
 
   """
-  def type_check(map, body, f_name, formal_para) do
+  def type_check(map, body, f_name, formal_para, fun_graph) do
     if Process.whereis(:type_server) == nil do
       ts_pid = spawn_link(fn -> type_server(Map.new()) end)
       Process.register(ts_pid, :type_server)
@@ -73,7 +75,7 @@ defmodule PolyHok.TypeInference do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
       IO.puts("[TypeInference] Target function/kernel name: #{inspect(f_name)}")
       IO.inspect(map, label: "[TypeInference] Provided initial delta map")
-      IO.inspect(formal_para, label: "[TypeInference] Formal parameters list")
+      IO.inspect(fun_graph, label: "[TypeInference] Fun graph")
       IO.inspect(formal_para_with_types, label: "[TypeInference] Formal parameters with types list")
 
       IO.inspect(type_server_key,
@@ -82,10 +84,10 @@ defmodule PolyHok.TypeInference do
     end
 
     # Check if the type server already contains a map for this function.
-    # If it does, then it means this function was processed before, so it may contain some already inferred types that we
-    # can use for a faster inference!
-    # I discovered (in the bad way) that we can't reuse an already inferred type map from a previous iteration if the initial
-    # delta map is different, because the initial delta map may contain new information that can change the inference results.
+    # If it does, then it means this function was processed before, so we may don't need to process it again!
+    # [IMPORTANT] We can't reuse an already inferred type map from the TS if the initial delta map is different
+    # than before! If the initial delta maps don't match, the new information will change the final results and things
+    # will get nasty.
     send(:type_server, {:get_types, type_server_key, self()})
 
     map =
@@ -154,7 +156,7 @@ defmodule PolyHok.TypeInference do
          "Could not infer types for the following variables: #{inspect(notinfer2)}"}
       else
         # If something did change, we go for another round
-        type_check(types2, body, f_name, formal_para)
+        type_check(types2, body, f_name, formal_para, fun_graph)
       end
     else
       {:ok, types}

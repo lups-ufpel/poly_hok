@@ -123,11 +123,11 @@ defmodule JIT do
       - `generated_code` is a list of strings containing the generated code for the function and all the functions it calls (if they were not already compiled).
       - `updated_compiled_funs` is the updated MapSet of compiled functions including the current function.
   """
-  def compile_function({:anon, lambda_name, {fun_ast, _inner_funs}, type_signature}, compiled_funs) do
+  def compile_function({:anon, lambda_name, {fun_ast, inner_funs}, type_signature}, compiled_funs) do
     delta = gen_delta_from_type(fun_ast, type_signature)
 
     inf_types =
-      case infer_types(fun_ast, delta, lambda_name) do
+      case infer_types(fun_ast, delta, lambda_name, inner_funs) do
         {:ok, types} ->
           types
 
@@ -166,7 +166,7 @@ defmodule JIT do
           delta = gen_delta_from_type(fast, type)
 
           inf_types =
-            case infer_types(fast, delta, name) do
+            case infer_types(fast, delta, name, fun_graph) do
               {:ok, types} ->
                 types
 
@@ -818,16 +818,16 @@ defmodule JIT do
       - A map where keys are variable names and values are their inferred types.
       - An optional reason for the error if the inference failed.
   """
-  def infer_types({:defk, _, [header, [body]]}, delta, kernel_name) do
-    PolyHok.TypeInference.type_check(delta, body, kernel_name, get_formal_para(header))
+  def infer_types({:defk, _, [header, [body]]}, delta, kernel_name, fun_graph) do
+    PolyHok.TypeInference.type_check(delta, body, kernel_name, get_formal_para(header), fun_graph)
   end
 
-  def infer_types({:defd, _, [header, [body]]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(header))
+  def infer_types({:defd, _, [header, [body]]}, delta, fun_name, fun_graph) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(header), fun_graph)
   end
 
-  def infer_types({:fn, _, [{:->, _, [para, body]}]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(para))
+  def infer_types({:fn, _, [{:->, _, [para, body]}]}, delta, fun_name, fun_graph) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(para), fun_graph)
   end
 
   defp get_formal_para({_, _, formal_para}) do
@@ -1008,7 +1008,7 @@ defmodule JIT do
       # in the list that it calls.
       delta_fun = Map.merge(delta_fun, delta)
 
-      case infer_types(ast, delta_fun, f) do
+      case infer_types(ast, delta_fun, f, []) do
         {:ok, types} ->
           # Get the current function type signature in the format {return_type, [param_types]}
           fun_sig =

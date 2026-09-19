@@ -23,24 +23,6 @@ defmodule PolyHok.TypeInference do
     end
   end
 
-  # To keep the TS map, the initial types must all match and the TS map must contain
-  # at least the same amount of information than the provided map
-  defp keep_ts_map?(ts_fp_types, fp_types) do
-    Enum.zip(ts_fp_types, fp_types)
-    |> Enum.reduce(true,
-      fn {ts_fp, fp_2}, acc ->
-        {_para_1, type_1} = ts_fp
-        {_para_2, type_2} = fp_2
-
-        cond do
-          type_2 == :none || type_2 == nil ->
-            acc
-          true ->
-            type_1 == type_2
-        end
-      end)
-  end
-
   @doc """
     Performs type checking and inference on the given AST body using the provided initial type map.
     It recursively infers types until no more types can be inferred.
@@ -49,91 +31,22 @@ defmodule PolyHok.TypeInference do
     - map: A map containing initial type information for variables and functions.
     - body: The AST body to perform type inference on.
     - f_name: The name of the function being processed, used for storing and retrieving types from the type server.
-    - formal_para: A list containing the formal parameters names of the kernel/function as atoms
 
     ## Returns
     - A tuple containing a status atom and the final type map after inference. Ex: {:ok, final_map} or {:error, final_map, reason}
 
   """
-  def type_check(map, body, f_name, formal_para) do
-    if Process.whereis(:type_server) == nil do
-      ts_pid = spawn_link(fn -> type_server(Map.new()) end)
-      Process.register(ts_pid, :type_server)
-    end
-
+  def type_check(map, body, f_name) do
     logs_en = is_debug_logs_enabled?()
-
-    # Map formal parameters with their infered types from delta map
-    formal_para_with_types =
-      formal_para
-      |> Enum.map(fn fp -> {fp, Map.get(map, fp, :none)} end)
-
-    # The type server key is the function name as an atom
-    type_server_key = f_name
 
     if logs_en do
       IO.puts("\n========= [TypeInference] Starting type inference iteration =========")
       IO.puts("[TypeInference] Target function/kernel name: #{inspect(f_name)}")
       IO.inspect(map, label: "[TypeInference] Provided initial delta map")
-      IO.inspect(formal_para_with_types, label: "[TypeInference] Formal parameters with types list")
-
-      IO.inspect(type_server_key,
-        label: "[TypeInference] * Type server key for this function/kernel"
-      )
     end
-
-    # Check if the type server already contains a map for this function.
-    # If it does, then it means this function was processed before, so we may don't need to process it again!
-    # [IMPORTANT] We can't reuse an already inferred type map from the TS if the initial delta map is different
-    # than before! If the initial delta maps don't match, the new information will change the final results and things
-    # will get nasty.
-    send(:type_server, {:get_types, type_server_key, self()})
-
-    map =
-      receive do
-        {:types_response, nil} ->
-          map
-
-        {:types_response, {ts_map, ts_formal_para_with_types}} ->
-          if logs_en do
-            IO.puts("[TypeInference] Retrieved data from type server")
-            IO.inspect(ts_formal_para_with_types, label: "TS formal para. with types")
-            IO.inspect(ts_map, label: "TS Types map")
-          end
-
-          # Check if the formal parameters and types are the same
-          if ts_formal_para_with_types == formal_para_with_types do
-            if logs_en do
-              IO.puts(
-                "[TypeInference] Formal parameters from TS are equal to the provided one. Reusing TS types map."
-              )
-            end
-
-            ts_map
-          else
-            # If the formal parameters types differ, we check if we can keep the TS map or we
-            # have to infer all over again with the provided types map
-            if keep_ts_map?(ts_formal_para_with_types, formal_para_with_types) do
-              if logs_en do
-                IO.puts("[TypeInference] Keeping TS map.")
-              end
-
-              ts_map
-            else
-              if logs_en do
-                IO.puts("[TypeInference] Formal parameters types differ. Using provided delta map.")
-              end
-
-              map
-            end
-          end
-      end
 
     types = infer_types(map, body)
     notinfer = not_infered(Map.to_list(types))
-
-    # Update the type map in the type server process using the same key
-    send(:type_server, {:update_types, type_server_key, {types, formal_para_with_types}})
 
     if logs_en do
       IO.inspect(types, label: "[TypeInference] Types map after iteration")
@@ -145,9 +58,6 @@ defmodule PolyHok.TypeInference do
       types2 = infer_types(types, body)
       notinfer2 = not_infered(Map.to_list(types2))
 
-      # Save the latest inferred types in the type server
-      send(:type_server, {:update_types, type_server_key, {types2, formal_para_with_types}})
-
       # Check if something changed
       if length(notinfer) == length(notinfer2) do
         # Return error atom with the latest inferred types and a reason message
@@ -155,7 +65,7 @@ defmodule PolyHok.TypeInference do
          "Could not infer types for the following variables: #{inspect(notinfer2)}"}
       else
         # If something did change, we go for another round
-        type_check(types2, body, f_name, formal_para)
+        type_check(types2, body, f_name)
       end
     else
       {:ok, types}

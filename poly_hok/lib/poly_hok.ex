@@ -564,18 +564,10 @@ defmodule PolyHok do
           IO.puts("[DEBUG] Kernel string code generated. We will now generate the device functions code")
           IO.inspect(all_funs, label: "[DEBUG] Functions to generate code")
 
-          # The JIT.compile_function/2 function compiles the provided function AND it's dependencies (other functions called within
-          # a function). To avoid recompiling functions that were already compiled, we provide a MapSet of already compiled functions,
-          # so the JIT.compile_function/2 can check and skip a function if necessary.
-          # We also re-infer the device functions here now that we have the kernel delta to guarantee we have the correct types
-          {comp, _compiled_funs} =
-            Enum.reduce(all_funs, {[], MapSet.new()}, fn fun, {code_acc, compiled_funs_acc} ->
-              {new_code, compiled_funs_acc} = JIT.compile_function(fun, compiled_funs_acc, kernel_types_map)
-              {code_acc ++ new_code, compiled_funs_acc}
-            end)
+          {funs_code, _compiled_map, _updated_delta} = JIT.compile_list_of_functions(all_funs, MapSet.new(), kernel_types_map)
 
           includes = JIT.get_includes()
-          prog = [includes | comp] ++ [kernel]
+          prog = [includes | funs_code] ++ [kernel]
 
           # Concatenating the generated code into a single string
           prog = Enum.reduce(prog, "", fn x, y -> y <> x end)

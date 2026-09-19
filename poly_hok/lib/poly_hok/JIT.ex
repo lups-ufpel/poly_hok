@@ -112,6 +112,46 @@ defmodule JIT do
   end
 
   @doc """
+  Applies JIT.compile_function/3 to a list of functions, accumulating the generated code, the set of compiled functions,
+  and the updated delta of inferred types. It ensures that only functions that have not been compiled yet are processed.
+
+  ## Parameters
+    - `fun_list`: A list of functions to compile. Each function can be either:
+      - `{:anon, lambda_name, {fun_ast, inner_funs}, type_signature}` for anonymous functions.
+      - `{name, type}` for named functions.
+    - `compiled_funs_set`: A MapSet of already compiled functions to avoid recompiling functions that were already generated.
+    - `initial_delta`: The initial inferred types map. This is used to get the type signature of other functions used inside
+    the current function.
+
+  ## Returns
+    - A tuple of format {generated_code, updated_compiled_funs, inf_types} where:
+      - `generated_code` is a list of strings containing the generated code for the functions and all the functions they call (if they were not already compiled).
+      - `updated_compiled_funs` is the updated MapSet of compiled functions including the current function.
+      - `inf_types` is the result map of the type inference in the functions.
+  """
+  def compile_list_of_functions(fun_list, compiled_funs_set, initial_delta) do
+    keep_only_functions = fn m ->
+      m
+      |> Map.values()
+      |> Enum.filter(fn v ->
+        case v do
+          {t, lst} when is_atom(t) and is_list(lst) -> true
+          _ -> false
+        end
+      end)
+    end
+
+    Enum.reduce(
+      fun_list,
+      {[], compiled_funs_set, keep_only_functions.(initial_delta)},
+      fn fun, {code_acc, compiled_funs_acc, delta_funs} ->
+        {new_code, compiled_funs_acc, delta_funs} = JIT.compile_function(fun, compiled_funs_acc, delta_funs)
+        {code_acc ++ new_code, compiled_funs_acc, keep_only_functions.(delta_funs)}
+      end
+    )
+  end
+
+  @doc """
   Compiles a function or anonymous function into target code.
   ## Parameters
     - `func`: A tuple representing the function to compile. It can be either:
@@ -120,9 +160,10 @@ defmodule JIT do
     - `compiled_funs`: A MapSet of already compiled functions to avoid recompiling functions that were already generated.
     - `kdelta`: Kernel inferred types map. This is used to get the type signature of other functions used inside this one.
   ## Returns
-    - A tuple of format {generated_code, updated_compiled_funs} where:
+    - A tuple of format {generated_code, updated_compiled_funs, inf_types} where:
       - `generated_code` is a list of strings containing the generated code for the function and all the functions it calls (if they were not already compiled).
       - `updated_compiled_funs` is the updated MapSet of compiled functions including the current function.
+      - `inf_types` is the result map of the type inference in the function
   """
   def compile_function({:anon, lambda_name, {fun_ast, _inner_funs}, type_signature}, compiled_funs, kdelta) do
     delta = Map.merge(kdelta, gen_delta_from_type(fun_ast, type_signature))
@@ -149,7 +190,7 @@ defmodule JIT do
     function = PolyHok.backend().declare_function(lambda_name, param_str, code_body, fun_type)
     function = "\n" <> function <> "\n\n"
 
-    {[function], compiled_funs}
+    {[function], compiled_funs, inf_types}
   end
 
   def compile_function({name, type}, compiled_funs, kdelta) do
@@ -200,8 +241,8 @@ defmodule JIT do
               MapSet.new()
             )
 
-          function = PolyHok.backend().declare_function(fname, param_str, code_body, fun_type)
-          function = "\n" <> function <> "\n\n"
+          function_code = PolyHok.backend().declare_function(fname, param_str, code_body, fun_type)
+          function_code = "\n" <> function_code <> "\n\n"
 
           # Mark itself as compiled in the set of compiled functions
           compiled_funs = MapSet.put(compiled_funs, name)
@@ -215,14 +256,10 @@ defmodule JIT do
               types != nil and not MapSet.member?(compiled_funs, f_name)
             end)
 
-          {code, compiled_funs} =
-            Enum.reduce(other_funs, {[], compiled_funs}, fn fun, {code_acc, compiled_funs_acc} ->
-              {new_code, compiled_funs_acc} = compile_function(fun, compiled_funs_acc, kdelta)
-              {code_acc ++ new_code, compiled_funs_acc}
-            end)
+          {other_funs_code, compiled_funs, inf_types} = compile_list_of_functions(other_funs, compiled_funs, inf_types)
 
-          # Returns the generated code and the updated set of compiled functions
-          {code ++ [function], compiled_funs}
+          # Returns the generated code, the updated set of compiled functions and updated delta
+          {other_funs_code ++ [function_code], compiled_funs, inf_types}
       end
     end
   end
@@ -819,24 +856,16 @@ defmodule JIT do
       - A map where keys are variable names and values are their inferred types.
       - An optional reason for the error if the inference failed.
   """
-  def infer_types({:defk, _, [header, [body]]}, delta, kernel_name) do
-    PolyHok.TypeInference.type_check(delta, body, kernel_name, get_formal_para(header))
+  def infer_types({:defk, _, [_header, [body]]}, delta, kernel_name) do
+    PolyHok.TypeInference.type_check(delta, body, kernel_name)
   end
 
-  def infer_types({:defd, _, [header, [body]]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(header))
+  def infer_types({:defd, _, [_header, [body]]}, delta, fun_name) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name)
   end
 
-  def infer_types({:fn, _, [{:->, _, [para, body]}]}, delta, fun_name) do
-    PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(para))
-  end
-
-  defp get_formal_para({_, _, formal_para}) do
-    get_formal_para(formal_para)
-  end
-
-  defp get_formal_para(formal_para) when is_list(formal_para) do
-    formal_para |> Enum.map(fn {fp, _, _} -> fp end)
+  def infer_types({:fn, _, [{:->, _, [_para, body]}]}, delta, fun_name) do
+    PolyHok.TypeInference.type_check(delta, body, fun_name)
   end
 
   @doc """

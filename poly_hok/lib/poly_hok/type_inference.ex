@@ -9,18 +9,34 @@ defmodule PolyHok.TypeInference do
 
   defp type_server(global_map) do
     receive do
-      {:update_types, key = {_f_name, _initial_delta_list}, new_types} ->
-        global_map = Map.put(global_map, key, new_types)
+      {:update_types, key, data = {_new_types, _formal_para_with_types}} ->
+        global_map = Map.put(global_map, key, data)
         type_server(global_map)
 
-      {:get_types, key = {_f_name, _initial_delta_list}, caller} ->
-        send(caller, {:types_response, Map.get(global_map, key)})
+      {:get_types, key, caller_pid} ->
+        send(caller_pid, {:types_response, Map.get(global_map, key)})
         type_server(global_map)
 
       _ ->
         IO.puts("Type server received unknown message")
         type_server(global_map)
     end
+  end
+
+  defp keep_ts_map?(ts_fp_types, fp_types) do
+    Enum.zip(ts_fp_types, fp_types)
+    |> Enum.reduce(true,
+      fn {ts_fp, fp_2}, acc ->
+        {_para_1, type_1} = ts_fp
+        {_para_2, type_2} = fp_2
+
+        cond do
+          type_2 == :none || type_2 == nil ->
+            acc
+          true ->
+            type_1 == type_2
+        end
+      end)
   end
 
   @doc """
@@ -50,7 +66,7 @@ defmodule PolyHok.TypeInference do
       formal_para
       |> Enum.map(fn fp -> {fp, Map.get(map, fp, :none)} end)
 
-    # The type server key is the function_name as an atom
+    # The type server key is the function name as an atom
     type_server_key = f_name
 
     if logs_en do
@@ -77,34 +93,38 @@ defmodule PolyHok.TypeInference do
         {:types_response, nil} ->
           map
 
-        {:types_response, types} ->
+        {:types_response, {ts_map, ts_formal_para_with_types}} ->
           if logs_en do
-            IO.inspect(types, label: "[TypeInference] Retrieved types map from type server")
+            IO.puts("[TypeInference] Retrieved data from type server")
+            IO.inspect(ts_formal_para_with_types, label: "TS formal para. with types")
+            IO.inspect(ts_map, label: "TS Types map")
           end
 
-          # We need to check if the retrieved type map from the type server is the same as the provided initial delta map
-          if types === map do
-            # Provided map and type server map are the same, we can use either one
+          # Check if the formal parameters and types are the same
+          if ts_formal_para_with_types == formal_para_with_types do
             if logs_en do
               IO.puts(
-                "[TypeInference] Retrieved types map from type server is the same as the provided map. Using either one."
+                "[TypeInference] Formal parameters from TS are equal to the provided one. Reusing TS types map."
               )
             end
 
-            map
+            ts_map
           else
-            # If the maps are not the same, we merge them
-            merged_map = merge_types_map(map, types)
+            # If the formal parameters types differ, we check if we can keep the TS map or we
+            # have to infer all over again with the provided types map
+            if keep_ts_map?(ts_formal_para_with_types, formal_para_with_types) do
+              if logs_en do
+                IO.puts("[TypeInference] Keeping TS map.")
+              end
 
-            if logs_en do
-              IO.puts(
-                "[TypeInference] Retrieved types map from type server is different from the provided map. Merging them to use the most updated info."
-              )
+              ts_map
+            else
+              if logs_en do
+                IO.puts("[TypeInference] Formal parameters types differ. Using provided delta map.")
+              end
 
-              IO.inspect(merged_map, label: "[TypeInference] Merged types map")
+              map
             end
-
-            merged_map
           end
       end
 
@@ -112,7 +132,7 @@ defmodule PolyHok.TypeInference do
     notinfer = not_infered(Map.to_list(types))
 
     # Update the type map in the type server process using the same key
-    send(:type_server, {:update_types, type_server_key, types})
+    send(:type_server, {:update_types, type_server_key, {types, formal_para_with_types}})
 
     if logs_en do
       IO.inspect(types, label: "[TypeInference] Types map after iteration")
@@ -163,29 +183,6 @@ defmodule PolyHok.TypeInference do
       {_, _} ->
         not_infered(t)
     end
-  end
-
-  # This function merges the types map from the type server with the new types map provided as argument to type_check/3.
-  # The new types map provided as argument has precedence over the type server map, as it may contains new info.
-  defp merge_types_map(arg_map, ts_map) do
-    Map.merge(ts_map, arg_map, fn _key, ts_val, arg_val ->
-      if ts_val == arg_val do
-        # If the types are the same, we can use either one
-        ts_val
-      else
-        # If the values are different, we need to check if one of them is :none,
-        # because if one of them is :none, it means that the other one has new info that we can use.
-        cond do
-          ts_val == :none -> arg_val
-          arg_val == :none -> ts_val
-          # If both values are different and none of them is :none,
-          # it means that we have a conflict in the types. In this case, we chose to use
-          # the arg_val, because it is the most updated info (it probably came from the kernel type inference)
-          # so it is more likely to be correct than the ts_val, which could lack context information.
-          true -> arg_val
-        end
-      end
-    end)
   end
 
   @doc """

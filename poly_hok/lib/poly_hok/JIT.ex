@@ -804,14 +804,6 @@ defmodule JIT do
     Map.put(delta, :return, return_type)
   end
 
-  defp get_formal_para({_, _, formal_para}) do
-    get_formal_para(formal_para)
-  end
-
-  defp get_formal_para(formal_para) when is_list(formal_para) do
-    formal_para |> Enum.map(fn {fp, _, _} -> fp end)
-  end
-
   @doc """
   Infers the types of variables in the function's AST based on the provided delta mapping.
 
@@ -836,6 +828,14 @@ defmodule JIT do
 
   def infer_types({:fn, _, [{:->, _, [para, body]}]}, delta, fun_name) do
     PolyHok.TypeInference.type_check(delta, body, fun_name, get_formal_para(para))
+  end
+
+  defp get_formal_para({_, _, formal_para}) do
+    get_formal_para(formal_para)
+  end
+
+  defp get_formal_para(formal_para) when is_list(formal_para) do
+    formal_para |> Enum.map(fn {fp, _, _} -> fp end)
   end
 
   @doc """

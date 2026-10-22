@@ -54,10 +54,28 @@ int init_cuda(ErlNifEnv *env)
   }
   else
   {
-    cuCtxSetCurrent(context);
+    CUresult err = cuCtxSetCurrent(context);
+
+    if (err != CUDA_SUCCESS)
+    {
+      const char *error;
+      cuGetErrorString(err, &error);
+      std::cerr << "Error setting CUDA context: " << error << std::endl;
+      return -1;
+    }
   }
 
   return 0;
+}
+
+static bool ensure_cuda_context()
+{
+  if (context == NULL)
+  {
+    return false;
+  }
+
+  return cuCtxSetCurrent(context) == CUDA_SUCCESS;
 }
 
 static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info)
@@ -94,6 +112,11 @@ static void unload(ErlNifEnv * /* env */, void * /* priv_data */)
 // This function retrieves the CUDA GPU array from VRAM to the host as an Erlang term.
 static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (!ensure_cuda_context())
+  {
+    return enif_make_badarg(env);
+  }
+
   if (argc != 4)
   {
     return enif_make_badarg(env);
@@ -184,6 +207,11 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
 // It allocates memory on the GPU and copies data to it from the host array provided.
 static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (!ensure_cuda_context())
+  {
+    return enif_make_badarg(env);
+  }
+
   if (argc != 4)
   {
     return enif_make_badarg(env);
@@ -283,6 +311,11 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
 // Creates a new empty GPU array with the specified number of rows, columns, and type
 static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (!ensure_cuda_context())
+  {
+    return enif_make_badarg(env);
+  }
+
   if (argc != 3)
   {
     return enif_make_badarg(env);
@@ -362,6 +395,11 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
 
 static ERL_NIF_TERM synchronize_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (!ensure_cuda_context())
+  {
+    return enif_make_badarg(env);
+  }
+
   CUresult r = cuCtxSynchronize();
 
   if (r != CUDA_SUCCESS)
@@ -565,6 +603,11 @@ static ERL_NIF_TERM jit_compile_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM
 // 6 - Arguments
 static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (!ensure_cuda_context())
+  {
+    return enif_make_badarg(env);
+  }
+
   if (argc != 6)
   {
     return enif_make_badarg(env);

@@ -231,10 +231,19 @@ defmodule PolyHok.TypeInference do
       {:!, _info, [_arg]} -> true
       {op, _inf, _args} when op in [:&&, :||] -> true
       {var, _info, nil} when is_atom(var) -> true
+      {fun, _info, args} when is_atom(fun) and is_list(args) -> function_returns_value?(fun)
       float when is_float(float) -> true
       int when is_integer(int) -> true
       string when is_binary(string) -> true
       _ -> false
+    end
+  end
+
+  defp function_returns_value?(fun) do
+    case PolyHokFunctions.lookup(fun) do
+      %{return_type: :unit} -> false
+      %{return_type: _} -> true
+      nil -> false
     end
   end
 

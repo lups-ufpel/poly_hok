@@ -35,12 +35,24 @@ int init_cuda(ErlNifEnv *env)
 {
   if (context == NULL)
   {
-    CUresult err;
-    int device = 0;
     cuInit(0);
 
-    err = cuCtxCreate(&context, 0, device);
+    CUresult err;
+    CUdevice device;
 
+    err = cuDeviceGet(&device, 0);
+    if (err != CUDA_SUCCESS)
+    {
+      const char *error;
+      cuGetErrorString(err, &error);
+
+      std::string message = "Error getting device: " + std::string(error);
+      std::cerr << message << std::endl;
+
+      return -1;
+    }
+
+    err = cuCtxCreate(&context, NULL, 0, device);
     if (err != CUDA_SUCCESS)
     {
       const char *error;
@@ -51,6 +63,8 @@ int init_cuda(ErlNifEnv *env)
 
       return -1;
     }
+
+    cuCtxSetCurrent(context);
   }
   else
   {

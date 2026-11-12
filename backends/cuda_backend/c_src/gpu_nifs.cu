@@ -8,6 +8,14 @@
 #include <cuda_runtime.h>
 #include <nvrtc.h>
 
+// On older versions of CUDA, the cuCtxCreate function only takes three parameters, so we
+// define a macro to map cuCtxCreate to cuCtxCreate_v2, which has the correct signature for
+// these versions.
+#if CUDA_VERSION < 13000
+    #undef cuCtxCreate
+    #define cuCtxCreate(pctx, params, flags, dev) cuCtxCreate_v2(pctx, flags, dev)
+#endif
+
 ErlNifResourceType *ARRAY_TYPE;
 ErlNifResourceType *COMPILED_KERNEL;
 

@@ -16,6 +16,8 @@
     #define cuCtxCreate(pctx, params, flags, dev) cuCtxCreate_v2(pctx, flags, dev)
 #endif
 
+CUcontext context = NULL;
+
 #define ENSURE_CONTEXT(METHOD_NAME,ENV) \
   CUresult _err = cuCtxSetCurrent(context); \
   if (_err != CUDA_SUCCESS) \
@@ -52,7 +54,8 @@ void compiled_kernel_destructor(ErlNifEnv * /* env */, void *res)
   delete[] compiled_kernel->kernel_name;
 }
 
-CUcontext context = NULL;
+// Initializee CUDA Driver API and create a CUDA context for the
+// first available device. This function is called when the NIF library is loaded.
 int init_cuda(ErlNifEnv *env)
 {
   if (context == NULL)
@@ -68,7 +71,7 @@ int init_cuda(ErlNifEnv *env)
       const char *error;
       cuGetErrorString(err, &error);
 
-      std::string message = "Error getting device: " + std::string(error);
+      std::string message = "[ERROR] (init_cuda) cuDeviceGet: " + std::string(error);
       std::cerr << message << std::endl;
 
       return -1;
@@ -80,7 +83,7 @@ int init_cuda(ErlNifEnv *env)
       const char *error;
       cuGetErrorString(err, &error);
 
-      std::string message = "Error initializing CUDA context: " + std::string(error);
+      std::string message = "[ERROR] (init_cuda) cuCtxCreate: " + std::string(error);
       std::cerr << message << std::endl;
 
       return -1;

@@ -164,7 +164,7 @@ static void unload(ErlNifEnv * /* env */, void * /* priv_data */)
 // This function retrieves the OpenCL array from the device (GPU) and returns it to the host as an Erlang term.
 static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_NIF_TERM argv[])
 {
-  int nrow, ncol;
+  size_t nrow, ncol;
   size_t data_size;
   char type_name[1024];
 
@@ -177,13 +177,13 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_
   }
 
   // Get number of rows
-  if (!enif_get_int(env, argv[1], &nrow))
+  if (!enif_get_ulong(env, argv[1], &nrow))
   {
     return enif_make_badarg(env);
   }
 
   // Get number of columns
-  if (!enif_get_int(env, argv[2], &ncol))
+  if (!enif_get_ulong(env, argv[2], &ncol))
   {
     return enif_make_badarg(env);
   }
@@ -259,7 +259,7 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_
 // It allocates memory on the GPU and copies data to it from the host array provided.
 static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int /* argc */, const ERL_NIF_TERM argv[])
 {
-  int nrow, ncol;
+  size_t nrow, ncol;
   size_t data_size;
   ErlNifBinary host_array_el;
 
@@ -270,13 +270,13 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int /* argc */, co
   }
 
   // Get number of rows
-  if (!enif_get_int(env, argv[1], &nrow))
+  if (!enif_get_ulong(env, argv[1], &nrow))
   {
     return enif_make_badarg(env);
   }
 
   // Get number of columns
-  if (!enif_get_int(env, argv[2], &ncol))
+  if (!enif_get_ulong(env, argv[2], &ncol))
   {
     return enif_make_badarg(env);
   }
@@ -347,17 +347,17 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int /* argc */, co
 // Creates a new empty GPU array with the specified number of rows, columns, and type
 static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int /* argc */, const ERL_NIF_TERM argv[])
 {
-  int nrow, ncol;
+  size_t nrow, ncol;
   size_t data_size;
 
   // Get number of rows
-  if (!enif_get_int(env, argv[0], &nrow))
+  if (!enif_get_ulong(env, argv[0], &nrow))
   {
     return enif_make_badarg(env);
   }
 
   // Get number of columns
-  if (!enif_get_int(env, argv[1], &ncol))
+  if (!enif_get_ulong(env, argv[1], &ncol))
   {
     return enif_make_badarg(env);
   }

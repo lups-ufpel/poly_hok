@@ -16,6 +16,16 @@
     #define cuCtxCreate(pctx, params, flags, dev) cuCtxCreate_v2(pctx, flags, dev)
 #endif
 
+#define ENSURE_CONTEXT(METHOD_NAME,ENV) \
+  CUresult _err = cuCtxSetCurrent(context); \
+  if (_err != CUDA_SUCCESS) \
+  { \
+    const char *error; \
+    cuGetErrorString(_err, &error); \
+    std::string message = "[ERROR] (" + std::string(METHOD_NAME) + "): error setting CUDA context: " + std::string(error); \
+    return enif_raise_exception(ENV, enif_make_string(ENV, message.c_str(), ERL_NIF_LATIN1)); \
+  }
+
 ErlNifResourceType *ARRAY_TYPE;
 ErlNifResourceType *COMPILED_KERNEL;
 
@@ -27,8 +37,12 @@ typedef struct _compiled_kernel
 
 void dev_array_destructor(ErlNifEnv * /* env */, void *res)
 {
-  CUdeviceptr *dev_array = (CUdeviceptr *)res;
-  cuMemFree(*dev_array);
+  if (context != NULL)
+  {
+    cuCtxSetCurrent(context);
+    CUdeviceptr *dev_array = (CUdeviceptr *)res;
+    cuMemFree(*dev_array);
+  }
 }
 
 void compiled_kernel_destructor(ErlNifEnv * /* env */, void *res)
@@ -71,14 +85,9 @@ int init_cuda(ErlNifEnv *env)
 
       return -1;
     }
-
-    cuCtxSetCurrent(context);
-  }
-  else
-  {
-    cuCtxSetCurrent(context);
   }
 
+  cuCtxSetCurrent(context);
   return 0;
 }
 
@@ -121,7 +130,9 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
     return enif_make_badarg(env);
   }
 
-  int nrow, ncol;
+  ENSURE_CONTEXT("get_gpu_array_nif", env);
+
+  size_t nrow, ncol;
   char type_name[1024];
 
   CUdeviceptr dev_array, *p_dev_array;
@@ -133,12 +144,12 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
   }
   dev_array = *p_dev_array;
 
-  if (!enif_get_int(env, argv[1], &nrow))
+  if (!enif_get_ulong(env, argv[1], &nrow))
   {
     return enif_make_badarg(env);
   }
 
-  if (!enif_get_int(env, argv[2], &ncol))
+  if (!enif_get_ulong(env, argv[2], &ncol))
   {
     return enif_make_badarg(env);
   }
@@ -191,7 +202,7 @@ static ERL_NIF_TERM get_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TE
     cuGetErrorString(err, &error);
 
     std::string message =
-        "Error (get_gpu_array_nif): error copying data from device to host: " +
+        "[ERROR] (get_gpu_array_nif): error copying data from device to host: " +
         std::string(error);
 
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
@@ -211,7 +222,9 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
     return enif_make_badarg(env);
   }
 
-  int nrow, ncol;
+  ENSURE_CONTEXT("new_gpu_array_from_nx_nif", env);
+
+  size_t nrow, ncol;
   ErlNifBinary host_array_el;
 
   // Get the host array binary
@@ -221,11 +234,11 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
   }
 
   // Get rows and columns
-  if (!enif_get_int(env, argv[1], &nrow))
+  if (!enif_get_ulong(env, argv[1], &nrow))
   {
     return enif_make_badarg(env);
   }
-  if (!enif_get_int(env, argv[2], &ncol))
+  if (!enif_get_ulong(env, argv[2], &ncol))
   {
     return enif_make_badarg(env);
   }
@@ -258,7 +271,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
   }
   else
   {
-    std::string message = "Error (new_gpu_array_from_nx_nif): unknown type: " + std::string(type_name);
+    std::string message = "[ERROR] (new_gpu_array_from_nx_nif): unknown type: " + std::string(type_name);
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
@@ -272,7 +285,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
     const char *error;
     cuGetErrorString(err, &error);
 
-    std::string message = "Error (new_gpu_array_from_nx_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
+    std::string message = "[ERROR] (new_gpu_array_from_nx_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
 
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
@@ -284,7 +297,7 @@ static ERL_NIF_TERM new_gpu_array_from_nx_nif(ErlNifEnv *env, int argc, const ER
     const char *error;
     cuGetErrorString(err, &error);
 
-    std::string message = "Error (new_gpu_array_from_nx_nif:) cuMemcpyHtoD size: " + std::to_string(data_size) + " : " + std::string(error);
+    std::string message = "[ERROR] (new_gpu_array_from_nx_nif:) cuMemcpyHtoD size: " + std::to_string(data_size) + " : " + std::string(error);
 
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
@@ -310,14 +323,16 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
     return enif_make_badarg(env);
   }
 
-  int nrow, ncol;
+  ENSURE_CONTEXT("new_empty_gpu_array_nif", env);
+
+  size_t nrow, ncol;
 
   // Get rows and columns
-  if (!enif_get_int(env, argv[0], &nrow))
+  if (!enif_get_ulong(env, argv[0], &nrow))
   {
     return enif_make_badarg(env);
   }
-  if (!enif_get_int(env, argv[1], &ncol))
+  if (!enif_get_ulong(env, argv[1], &ncol))
   {
     return enif_make_badarg(env);
   }
@@ -350,7 +365,7 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
   }
   else
   {
-    std::string message = "Error (new_empty_gpu_array_nif): unknown type: " + std::string(type_name);
+    std::string message = "[ERROR] (new_empty_gpu_array_nif): unknown type: " + std::string(type_name);
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
 
@@ -364,7 +379,7 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
     const char *error;
     cuGetErrorString(err, &error);
 
-    std::string message = "Error (new_empty_gpu_array_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
+    std::string message = "[ERROR] (new_empty_gpu_array_nif:) cuMemAlloc size: " + std::to_string(data_size) + " : " + std::string(error);
 
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
@@ -384,6 +399,8 @@ static ERL_NIF_TERM new_empty_gpu_array_nif(ErlNifEnv *env, int argc, const ERL_
 
 static ERL_NIF_TERM synchronize_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  ENSURE_CONTEXT("synchronize_nif", env);
+
   CUresult r = cuCtxSynchronize();
 
   if (r != CUDA_SUCCESS)
@@ -391,7 +408,7 @@ static ERL_NIF_TERM synchronize_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM
     const char *error;
     cuGetErrorString(r, &error);
 
-    std::string message = "Error (synchronize_nif): error synchronizing device: " + std::string(error);
+    std::string message = "[ERROR] (synchronize_nif): error synchronizing device: " + std::string(error);
 
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));
   }
@@ -405,7 +422,7 @@ ERL_NIF_TERM fail_cuda(ErlNifEnv *env, CUresult result, const char *obs)
   cuGetErrorString(result, &error);
 
   std::string message =
-      "Error CUDA " +
+      "[ERROR] CUDA " +
       std::string(obs) +
       ": " +
       std::string(error);
@@ -416,7 +433,7 @@ ERL_NIF_TERM fail_cuda(ErlNifEnv *env, CUresult result, const char *obs)
 ERL_NIF_TERM fail_nvrtc(ErlNifEnv *env, nvrtcResult result, const char *obs)
 {
   std::string message =
-      "Error  NVRTC " +
+      "[ERROR]  NVRTC " +
       std::string(obs) +
       ": " +
       std::string(nvrtcGetErrorString(result));
@@ -591,6 +608,8 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   {
     return enif_make_badarg(env);
   }
+
+  ENSURE_CONTEXT("jit_launch_nif", env);
 
   // Getting compiled kernel from the first argument (Erlang resource)
   CompiledKernel *compiled_kernel = NULL;
@@ -787,7 +806,7 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
     const char *error;
     cuGetErrorString(err, &error);
 
-    std::string message = "Error (jit_launch_nif): error synchronizing device after kernel launch: " + std::string(error);
+    std::string message = "[ERROR] (jit_launch_nif): error synchronizing device after kernel launch: " + std::string(error);
 
     cuModuleUnload(module);
     return enif_raise_exception(env, enif_make_string(env, message.c_str(), ERL_NIF_LATIN1));

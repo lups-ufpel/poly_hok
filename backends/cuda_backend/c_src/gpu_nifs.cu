@@ -821,11 +821,11 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"new_empty_gpu_array_nif", 3, new_empty_gpu_array_nif, 0},
-    {"new_gpu_array_from_nx_nif", 4, new_gpu_array_from_nx_nif, 0},
-    {"get_gpu_array_nif", 4, get_gpu_array_nif, 0},
-    {"synchronize_nif", 0, synchronize_nif, 0},
-    {"jit_compile_nif", 2, jit_compile_nif, 0},
-    {"jit_launch_nif", 6, jit_launch_nif, 0}};
+    {"new_empty_gpu_array_nif", 3, new_empty_gpu_array_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"new_gpu_array_from_nx_nif", 4, new_gpu_array_from_nx_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"get_gpu_array_nif", 4, get_gpu_array_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"synchronize_nif", 0, synchronize_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"jit_compile_nif", 2, jit_compile_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"jit_launch_nif", 6, jit_launch_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}};
 
 ERL_NIF_INIT(Elixir.CudaBackend, nif_funcs, &load, NULL, NULL, &unload)
